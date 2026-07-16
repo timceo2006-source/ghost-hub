@@ -16,108 +16,64 @@ local autoFarmActive = false
 local loopTask = nil
 
 -- ฟังก์ชันที่ใช้ในลูป (ปรับปรุงให้รองรับการเกิดใหม่)
-local function runFarmLogic()
-    local Players = game:GetService("Players")
-    local RunService = game:GetService("RunService")
-    
-    -- ลูปหลัก (ใช้ task.spawn เพื่อให้รันแยก)
-    loopTask = task.spawn(function()
-        while autoFarmActive do
-            local Player = Players.LocalPlayer
-            local Character = Player.Character
+loopTask = task.spawn(function()
+    while autoFarmActive do
+        local Player = game:GetService("Players").LocalPlayer
+        local Character = Player.Character
+        
+        -- เช็คตัวละครและอาวุธ (เหมือนเดิม)
+        if not Character or not Character:FindFirstChild("Humanoid") or Character.Humanoid.Health <= 0 then
+            task.wait(2); continue
+        end
+        local tool = Character:FindFirstChild("Combat") or Player.Backpack:FindFirstChild("Combat")
+        if not tool then task.wait(10); if Character:FindFirstChild("Humanoid") then Character.Humanoid.Health = 0 end; continue end
+
+        local TargetFolder = workspace:FindFirstChild("NPC Zones") and workspace["NPC Zones"]:FindFirstChild("Starter Island") and workspace["NPC Zones"]["Starter Island"]:FindFirstChild("NPCS")
+        
+        if TargetFolder then
+            local currentLevel = Player.PlayerData.Experience.Level.Value
+            local _, targetName = getQuestInfo()
             
-            -- ตรวจสอบว่าตัวละครตายหรือไม่
-            if not Character or not Character:FindFirstChild("HumanoidRootPart") or Character.Humanoid.Health <= 0 then
-                task.wait(2)
-                continue
+            -- ตรวจสอบเควส
+            if Player.Quest.GiverName.Value == "" then acceptQuest(select(1, getQuestInfo())) end
+
+            -- [ส่วนที่แก้ไข]: ระบบเช็คเป้าหมายเดิมก่อนหาใหม่
+            local needsNewTarget = true
+            if lockedTarget and lockedTarget:FindFirstChild("Humanoid") and lockedTarget.Humanoid.Health > 0 then
+                -- ถ้าเป้าหมายเดิมยังมีชีวิตและอยู่ในระยะ ให้ล็อคเป้าเดิมไว้
+                needsNewTarget = false
             end
 
-            local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-            local Humanoid = Character:WaitForChild("Humanoid")
-            
-            -- ระบบเช็คอาวุธ: ถ้าไม่มีในมือและกระเป๋า ให้รอ 10 วิ ถ้ายังไม่มีให้รีตัว
-            local tool = Character:FindFirstChild("Combat") or Player.Backpack:FindFirstChild("Combat")
-            if not tool then
-                task.wait(10)
-                if Humanoid then Humanoid.Health = 0 end
-                task.wait(2)
-                continue
-            end
-
-            -- ตั้งค่า Path (ดึงใหม่ในลูปเพื่อความปลอดภัย)
-            local NpcWorkspace = workspace:FindFirstChild("Npc_Workspace")
-            local QuestGiver = NpcWorkspace and NpcWorkspace:FindFirstChild("QuestGivers") and NpcWorkspace.QuestGivers:FindFirstChild("1")
-            local TargetFolder = workspace:FindFirstChild("NPC Zones") and workspace["NPC Zones"]:FindFirstChild("Starter Island") and workspace["NPC Zones"]["Starter Island"]:FindFirstChild("NPCS")
-
-            local function getQuestInfo()
-                local level = Player.PlayerData.Experience.Level.Value 
-                if level >= 25 then return "Level 25", "Bandit Boss"
-                elseif level >= 10 then return "Level 10", "Bandit"
-                else return "Level 1", "Thief" end
-            end
-
-            local function acceptQuest(questName)
-                if not QuestGiver then return end
-                local questGui = Player:FindFirstChild("PlayerGui") and Player.PlayerGui:FindFirstChild("QuestGui")
-                local questFunc = questGui and questGui:FindFirstChild("QuestFunction")
-                if questFunc then pcall(function() questFunc:InvokeServer(QuestGiver, questName) end) end
-            end
-
-            -- ลูปหาเป้าหมาย
-            if TargetFolder then
-                local currentLevel = Player.PlayerData.Experience.Level.Value
-                local _, targetName = getQuestInfo()
-                
-                if Player.Quest.GiverName.Value == "" then acceptQuest(select(1, getQuestInfo())) end
-
-                local lockedTarget = nil
+            -- หาเป้าหมายใหม่เฉพาะเมื่อไม่มีเป้าหมายเดิม
+            if needsNewTarget then
+                lockedTarget = nil
                 for _, obj in pairs(TargetFolder:GetChildren()) do
-                    local isTarget = string.match(obj.Name, "^" .. targetName)
-                    local isBoss = string.find(string.lower(obj.Name), "boss") ~= nil
-                    
-                    if isTarget and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then
-                        if currentLevel < 25 then
-                            if not isBoss then lockedTarget = obj; break end
-                        else
-                            if isBoss then lockedTarget = obj; break end
+                    if obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 and string.match(obj.Name, "^" .. targetName) then
+                        local isBoss = string.find(string.lower(obj.Name), "boss") ~= nil
+                        if (currentLevel < 25 and not isBoss) or (currentLevel >= 25 and isBoss) then
+                            lockedTarget = obj
+                            break
                         end
                     end
                 end
-
-                -- ล็อคตำแหน่งและโจมตี
-                if lockedTarget and lockedTarget:FindFirstChild("HumanoidRootPart") then
-                    Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
-                    HumanoidRootPart.CFrame = CFrame.lookAt(lockedTarget.HumanoidRootPart.Position + Vector3.new(0, 7, 0), lockedTarget.HumanoidRootPart.Position)
-                    HumanoidRootPart.AssemblyLinearVelocity = Vector3.zero
-                    
-                    if not Character:FindFirstChild("Combat") then Humanoid:EquipTool(tool) end
-                    tool:Activate() 
-                else
-                    Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-                end
             end
-            task.wait(0.5)
-        end
-    end)
-end
 
--- [ส่วนที่แก้ไข 2: Callback สั่งเริ่ม/หยุด]
-MainTab:Toggle({
-    Title = "AutoFarm",
-    Desc = "AutoFarmLevel",
-    Value = false,
-    Callback = function(state)
-        autoFarmActive = state
-        if state then
-            runFarmLogic()
-        else
-            if loopTask then task.cancel(loopTask) end
-            local char = game:GetService("Players").LocalPlayer.Character
-            if char and char:FindFirstChild("Humanoid") then
-                char.Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+            -- โจมตี
+            if lockedTarget and lockedTarget:FindFirstChild("HumanoidRootPart") then
+                Character.Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+                Character.HumanoidRootPart.CFrame = CFrame.lookAt(lockedTarget.HumanoidRootPart.Position + Vector3.new(0, 7, 0), lockedTarget.HumanoidRootPart.Position)
+                Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.zero
+                
+                if not Character:FindFirstChild("Combat") then Character.Humanoid:EquipTool(tool) end
+                tool:Activate()
+            else
+                lockedTarget = nil -- ถ้าหาไม่เจอให้ล้างค่า
+                Character.Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
             end
         end
+        task.wait(0.2) -- ลดเวลา wait เพื่อให้ตอบสนองไวขึ้น
     end
+end)
 })
 
 
