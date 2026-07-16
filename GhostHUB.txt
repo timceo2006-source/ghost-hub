@@ -11,97 +11,80 @@ local Window = WindUI:CreateWindow({
 
 local MainTab = Window:Tab({ Title = "Tab Title", Icon = "bird" })
 
--- [ส่วนที่แก้ไข 1: นำตัวแปรและฟังก์ชันที่จำเป็นออกมาไว้ข้างนอก Callback]
+-- 1. ประกาศตัวแปรควบคุม
 local autoFarmActive = false
 local loopTask = nil
 
--- ฟังก์ชันที่ใช้ในลูป (เอาออกมาข้างนอก)
+-- 2. ฟังก์ชันหลัก (รวมระบบเช็คการตายและเช็คอาวุธ)
 local function runFarmLogic()
     local Players = game:GetService("Players")
-    local RunService = game:GetService("RunService")
     local Player = Players.LocalPlayer
-    local Character = Player.Character or Player.CharacterAdded:Wait()
-    local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-    local Humanoid = Character:WaitForChild("Humanoid")
     
-    local NpcWorkspace = workspace:FindFirstChild("Npc_Workspace")
-    local QuestGiver = NpcWorkspace and NpcWorkspace:FindFirstChild("QuestGivers") and NpcWorkspace.QuestGivers:FindFirstChild("1")
-    local TargetFolder = workspace:FindFirstChild("NPC Zones") and workspace["NPC Zones"]:FindFirstChild("Starter Island") and workspace["NPC Zones"]["Starter Island"]:FindFirstChild("NPCS")
-
-    local function getQuestInfo()
-        local level = Player.PlayerData.Experience.Level.Value 
-        if level >= 25 then return "Level 25", "Bandit Boss"
-        elseif level >= 10 then return "Level 10", "Bandit"
-        else return "Level 1", "Thief" end
-    end
-
-    local function acceptQuest(questName)
-        if not QuestGiver then return end
-        local questGui = Player:FindFirstChild("PlayerGui") and Player.PlayerGui:FindFirstChild("QuestGui")
-        local questFunc = questGui and questGui:FindFirstChild("QuestFunction")
-        if questFunc then pcall(function() questFunc:InvokeServer(QuestGiver, questName) end) end
-        task.wait(1)
-    end
-
-    local lockedTarget = nil
-
-    -- ลูปหลัก
     loopTask = task.spawn(function()
         while autoFarmActive do
+            -- ดึงค่า Character ใหม่ทุกครั้งในลูป (รองรับการเกิดใหม่)
+            local Character = Player.Character
+            if not Character or not Character:FindFirstChild("Humanoid") or Character.Humanoid.Health <= 0 then
+                task.wait(2)
+                continue
+            end
+
+            -- เช็คอาวุธ (ถ้าไม่มีในมือและกระเป๋า ให้รอ 10 วิ ถ้ายังไม่มีให้รีตัว)
+            local tool = Character:FindFirstChild("Combat") or Player.Backpack:FindFirstChild("Combat")
+            if not tool then
+                task.wait(10)
+                if Character:FindFirstChild("Humanoid") then Character.Humanoid.Health = 0 end
+                continue
+            end
+
+            -- ค้นหา Path ในลูป (แก้ปัญหาบางเกมรีเซ็ต Workspace)
+            local TargetFolder = workspace:FindFirstChild("NPC Zones") and workspace["NPC Zones"]:FindFirstChild("Starter Island") and workspace["NPC Zones"]["Starter Island"]:FindFirstChild("NPCS")
+            
             if TargetFolder then
                 local currentLevel = Player.PlayerData.Experience.Level.Value
-                local _, targetName = getQuestInfo()
                 
-                if Player.Quest.GiverName.Value == "" then acceptQuest(select(1, getQuestInfo())) end
+                -- เลือกเควสและชื่อเป้าหมาย
+                local qName, tName = "Level 1", "Thief"
+                if currentLevel >= 25 then qName, tName = "Level 25", "Bandit Boss"
+                elseif currentLevel >= 10 then qName, tName = "Level 10", "Bandit" end
 
+                -- รับเควส
+                if Player.Quest.GiverName.Value == "" then
+                    local NpcWorkspace = workspace:FindFirstChild("Npc_Workspace")
+                    local QuestGiver = NpcWorkspace and NpcWorkspace:FindFirstChild("QuestGivers") and NpcWorkspace.QuestGivers:FindFirstChild("1")
+                    local questFunc = Player:FindFirstChild("PlayerGui") and Player.PlayerGui:FindFirstChild("QuestGui") and Player.PlayerGui.QuestGui:FindFirstChild("QuestFunction")
+                    if questFunc then pcall(function() questFunc:InvokeServer(QuestGiver, qName) end) end
+                end
+
+                -- ค้นหาเป้าหมาย
+                local lockedTarget = nil
                 for _, obj in pairs(TargetFolder:GetChildren()) do
-                    -- เช็คชื่อมอนสเตอร์ (Bandit)
-                    local isTarget = string.match(obj.Name, "^" .. targetName)
-                    -- เช็คว่าชื่อมีคำว่า Boss หรือไม่
-                    local isBoss = string.find(string.lower(obj.Name), "boss") ~= nil
-                    
-                    if isTarget and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then
-                        -- เงื่อนไข: ถ้าเลเวลต่ำกว่า 25 ให้ตี Bandit ธรรมดา (ไม่ใช่ Boss)
-                        if currentLevel < 25 then
-                            if not isBoss then 
-                                lockedTarget = obj
-                                break 
-                            end
-                        -- เงื่อนไข: ถ้าเลเวล 25 ขึ้นไป ให้ตีเฉพาะ Bandit Boss เท่านั้น
-                        else
-                            if isBoss then 
-                                lockedTarget = obj
-                                break 
-                            end
+                    if obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 and string.match(obj.Name, "^" .. tName) then
+                        local isBoss = string.find(string.lower(obj.Name), "boss") ~= nil
+                        -- Logic: < 25 ตีมอนปกติ, >= 25 ตีเฉพาะ Boss
+                        if (currentLevel < 25 and not isBoss) or (currentLevel >= 25 and isBoss) then
+                            lockedTarget = obj
+                            break
                         end
                     end
+                end
+
+                -- ล็อคตำแหน่งและตี
+                if lockedTarget and lockedTarget:FindFirstChild("HumanoidRootPart") then
+                    Character.Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+                    Character.HumanoidRootPart.CFrame = CFrame.lookAt(lockedTarget.HumanoidRootPart.Position + Vector3.new(0, 7, 0), lockedTarget.HumanoidRootPart.Position)
+                    Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.zero
+                    
+                    if not Character:FindFirstChild("Combat") then Character.Humanoid:EquipTool(tool) end
+                    tool:Activate()
                 end
             end
             task.wait(0.5)
         end
     end)
-
-
-    -- ล็อคตำแหน่ง (Heartbeat)
-    local connection
-    connection = RunService.Heartbeat:Connect(function()
-        if not autoFarmActive then connection:Disconnect(); return end
-        if lockedTarget and lockedTarget:FindFirstChild("HumanoidRootPart") and lockedTarget.Humanoid.Health > 0 then
-            Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
-            HumanoidRootPart.CFrame = CFrame.lookAt(lockedTarget.HumanoidRootPart.Position + Vector3.new(0, 7, 0), lockedTarget.HumanoidRootPart.Position)
-            HumanoidRootPart.AssemblyLinearVelocity = Vector3.zero
-            local tool = Character:FindFirstChild("Combat") or Player.Backpack:FindFirstChild("Combat")
-            if tool then 
-                if not Character:FindFirstChild("Combat") then Humanoid:EquipTool(tool) end
-                tool:Activate() 
-            end
-        else
-            Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-        end
-    end)
 end
 
--- [ส่วนที่แก้ไข 2: Callback สั่งเริ่ม/หยุด]
+-- 3. ส่วน Toggle ใน UI
 MainTab:Toggle({
     Title = "AutoFarm",
     Desc = "AutoFarmLevel",
@@ -111,7 +94,14 @@ MainTab:Toggle({
         if state then
             runFarmLogic()
         else
-            if loopTask then task.cancel(loopTask) end
+            if loopTask then 
+                task.cancel(loopTask) 
+                loopTask = nil 
+            end
+            local char = game:GetService("Players").LocalPlayer.Character
+            if char and char:FindFirstChild("Humanoid") then
+                char.Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+            end
         end
     end
 })
@@ -127,7 +117,7 @@ local Tab = Window:Tab({
 
 -- 2. สร้าง Dropdown (ต้องใช้ :AddDropdown)
 local Dropdown = Tab:AddDropdown({
-    Title = "เลือกสถานะ",
+    Title = "Stats",
     Desc = "เลือกสถานะที่ต้องการอัพ",
     Values = { "Combat", "Defense", "Sword", "Fruit" },
     Value = { "Combat" },
