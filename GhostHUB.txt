@@ -1,10 +1,10 @@
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Window = WindUI:CreateWindow({
-    Title = "My Super Hub",
+    Title = "Ghost Hub",
     Icon = "door-open", -- lucide icon
-    Author = "by .ftgs and .ftgs",
-    Folder = "MySuperHub",
+    Author = "by .TiM",
+    Folder = "MyGhostHub",
 
     Size = UDim2.fromOffset(580, 460),
     MinSize = Vector2.new(560, 350),
@@ -34,13 +34,13 @@ local autoFarmActive = false
 local loopTask = nil
 local heartbeatConnection = nil
 local TweenService = game:GetService("TweenService")
-local isTweening = false -- ตัวแปรกัน Tween ซ้อนกัน
+local isTweening = false 
 
--- [ฟังก์ชันหาโฟลเดอร์ตามเลเวล]
+-- [ฟังก์ชันหาโฟลเดอร์ตามเลเวลและเกาะ]
 local function GetTargetFolder(level)
     local zones = workspace:FindFirstChild("NPC Zones")
     if not zones then return nil end
-    local islandName = (level >= 40) and "Desert Island" or "Starter Island"
+    local islandName = (level >= 40) and "Clown Island" or "Starter Island"
     return zones:FindFirstChild(islandName) and zones[islandName]:FindFirstChild("NPCS")
 end
 
@@ -50,22 +50,24 @@ local function runFarmLogic()
     local Player = Players.LocalPlayer
     local lockedTarget = nil
 
+    -- [ตั้งค่าเควสและจุดบินรอ]
+    -- ใส่พิกัด Vector3.new(x, y, z) ของจุดที่จะให้ไปบินรอที่เกาะนั้นๆ
     local function getQuestInfo()
         local level = Player.PlayerData.Experience.Level.Value 
-        if level >= 40 then return "Level 40", "Desert Bandit"
-        elseif level >= 25 then return "Level 25", "Bandit Boss"
-        elseif level >= 10 then return "Level 10", "Bandit"
-        else return "Level 1", "Thief" end
+        if level >= 60 then return "Level 60", "Clown Boss", "2", Vector3.new(0, 100, 0) -- แก้เลขตรงนี้
+        elseif level >= 40 then return "Level 40", "Pirate Clown", "2", Vector3.new(0, 100, 0) -- แก้เลขตรงนี้
+        elseif level >= 25 then return "Level 25", "Bandit Boss", "1", Vector3.new(0, 100, 0)
+        else return "Level 1", "Thief", "1", Vector3.new(0, 100, 0) end
     end
 
-    local function acceptQuest(questName)
+    local function acceptQuest(questName, giverIndex)
         local NpcWorkspace = workspace:FindFirstChild("Npc_Workspace")
-        local QuestGiver = NpcWorkspace and NpcWorkspace:FindFirstChild("QuestGivers") and NpcWorkspace.QuestGivers:FindFirstChild("1")
+        local QuestGiver = NpcWorkspace and NpcWorkspace:FindFirstChild("QuestGivers") and NpcWorkspace.QuestGivers:FindFirstChild(giverIndex)
         local questFunc = Player:FindFirstChild("PlayerGui") and Player.PlayerGui:FindFirstChild("QuestGui") and Player.PlayerGui.QuestGui:FindFirstChild("QuestFunction")
         if questFunc and QuestGiver then pcall(function() questFunc:InvokeServer(QuestGiver, questName) end) end
     end
 
-    -- ลูปสมอง (หาเควส/เป้าหมาย)
+    -- ลูปสมอง
     loopTask = task.spawn(function()
         while autoFarmActive do
             local Character = Player.Character
@@ -74,17 +76,26 @@ local function runFarmLogic()
                 local TargetFolder = GetTargetFolder(currentLevel)
 
                 if TargetFolder then
-                    local _, targetName = getQuestInfo()
-                    if Player.Quest.GiverName.Value == "" then acceptQuest(select(1, getQuestInfo())) end
+                    local qName, _, gIndex = getQuestInfo()
+                    if Player.Quest.GiverName.Value == "" then acceptQuest(qName, gIndex) end
 
                     if not (lockedTarget and lockedTarget:FindFirstChild("Humanoid") and lockedTarget.Humanoid.Health > 0) then
                         lockedTarget = nil
+                        local _, tName = getQuestInfo() -- ดึงชื่อมอน
                         for _, obj in pairs(TargetFolder:GetChildren()) do
-                            local isTarget = string.match(obj.Name, "^" .. targetName)
+                            local isTarget = string.match(obj.Name, "^" .. tName)
                             local isBoss = string.find(string.lower(obj.Name), "boss") ~= nil
+                            
                             if isTarget and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then
-                                if (currentLevel < 25 and not isBoss) or (currentLevel >= 25 and isBoss) then
-                                    lockedTarget = obj; break
+                                -- Logic การเลือกมอน
+                                if currentLevel >= 60 then
+                                    if isBoss then lockedTarget = obj; break end
+                                elseif currentLevel >= 40 then
+                                    if not isBoss then lockedTarget = obj; break end
+                                else
+                                    if (currentLevel < 25 and not isBoss) or (currentLevel >= 25 and isBoss) then
+                                        lockedTarget = obj; break
+                                    end
                                 end
                             end
                         end
@@ -95,40 +106,43 @@ local function runFarmLogic()
         end
     end)
 
-    -- ลูปเคลื่อนที่ (Heartbeat)
+    -- ลูปเคลื่อนที่ (บิน/ลอยตัว)
     heartbeatConnection = RunService.Heartbeat:Connect(function()
         if not autoFarmActive then return end
         local Character = Player.Character
         local HRP = Character and Character:FindFirstChild("HumanoidRootPart")
-        local tool = Character and (Character:FindFirstChild("Combat") or Player.Backpack:FindFirstChild("Combat"))
+        local _, _, _, hoverPos = getQuestInfo() -- ดึงจุดที่จะไปบินรอ
 
-        if lockedTarget and lockedTarget:FindFirstChild("HumanoidRootPart") and HRP then
-            local targetPos = lockedTarget.HumanoidRootPart.Position + Vector3.new(0, 7, 0)
-            local distance = (HRP.Position - targetPos).Magnitude
-
-            if distance > 20 then
-                -- Tween แบบปลอดภัย (เช็คว่าไม่ได้กำลัง Tween อยู่)
-                if not isTweening then
-                    isTweening = true
-                    local tweenInfo = TweenInfo.new(1, Enum.EasingStyle.Linear) -- ปรับเวลาตายตัวที่ 1 วินาที เพื่อความเสถียร
-                    local tween = TweenService:Create(HRP, tweenInfo, {CFrame = CFrame.new(targetPos)})
-                    tween:Play()
-                    tween.Completed:Connect(function() isTweening = false end)
+        if HRP then
+            Character.Humanoid:ChangeState(Enum.HumanoidStateType.Physics) -- บังคับลอยตัว
+            
+            if lockedTarget and lockedTarget:FindFirstChild("HumanoidRootPart") then
+                -- มีมอน: พุ่งไปหา
+                local targetPos = lockedTarget.HumanoidRootPart.Position + Vector3.new(0, 5, 0)
+                if (HRP.Position - targetPos).Magnitude > 15 then
+                    if not isTweening then
+                        isTweening = true
+                        TweenService:Create(HRP, TweenInfo.new(0.5, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPos)}):Play()
+                        task.wait(0.6); isTweening = false
+                    end
+                else
+                    HRP.CFrame = CFrame.lookAt(targetPos, lockedTarget.HumanoidRootPart.Position)
+                    local tool = Character:FindFirstChild("Combat") or Player.Backpack:FindFirstChild("Combat")
+                    if tool then 
+                        if not Character:FindFirstChild("Combat") then Character.Humanoid:EquipTool(tool) end
+                        tool:Activate() 
+                    end
                 end
             else
-                -- Lock ตำแหน่ง
-                isTweening = false -- ยกเลิกสถานะ Tween
-                Character.Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
-                HRP.CFrame = CFrame.lookAt(targetPos, lockedTarget.HumanoidRootPart.Position)
-                HRP.AssemblyLinearVelocity = Vector3.zero
-                
-                if tool then
-                    if not Character:FindFirstChild("Combat") then Character.Humanoid:EquipTool(tool) end
-                    tool:Activate()
+                -- ไม่มีมอน: บินไปรอที่จุด Hover
+                if (HRP.Position - hoverPos).Magnitude > 5 then
+                    if not isTweening then
+                        isTweening = true
+                        TweenService:Create(HRP, TweenInfo.new(1.5, Enum.EasingStyle.Linear), {CFrame = CFrame.new(hoverPos)}):Play()
+                        task.wait(1.6); isTweening = false
+                    end
                 end
             end
-        elseif Character and Character:FindFirstChild("Humanoid") then
-            Character.Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
         end
     end)
 end
@@ -140,8 +154,7 @@ MainTab:Toggle({
     Value = false,
     Callback = function(state)
         autoFarmActive = state
-        if state then
-            runFarmLogic()
+        if state then runFarmLogic()
         else
             if loopTask then task.cancel(loopTask) end
             if heartbeatConnection then heartbeatConnection:Disconnect() end
