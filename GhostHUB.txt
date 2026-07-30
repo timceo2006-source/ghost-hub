@@ -77,7 +77,7 @@ local function runFarmLogic()
 
         if lockedTarget and lockedTarget:FindFirstChild("HumanoidRootPart") and Character and Character:FindFirstChild("HumanoidRootPart") then
             Character.Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
-            Character.HumanoidRootPart.CFrame = CFrame.lookAt(lockedTarget.HumanoidRootPart.Position + Vector3.new(0, 7, 0), lockedTarget.HumanoidRootPart.Position)
+            Character.HumanoidRootPart.CFrame = CFrame.lookAt(lockedTarget.HumanoidRootPart.Position + Vector3.new(0, 6, 0), lockedTarget.HumanoidRootPart.Position)
             Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.zero
             if tool then
                 if not Character:FindFirstChild("Combat") then Character.Humanoid:EquipTool(tool) end
