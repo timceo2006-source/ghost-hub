@@ -27,7 +27,11 @@ local Window = WindUI:CreateWindow({
     },
 })
 
-local MainTab = Window:Tab({ Title = "Faem", Icon = "bird" })
+local Tab = Window:Tab({
+    Title = "Farm",
+    Icon = "", -- optional
+    Locked = false,
+})
 
 -- 2. ตัวแปรควบคุม
 local autoFarmActive = false
