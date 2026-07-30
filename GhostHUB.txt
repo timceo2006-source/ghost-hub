@@ -9,7 +9,7 @@ local Window = WindUI:CreateWindow({
     Theme = "Dark",
 })
 
-local MainTab = Window:Tab({ Title = "Main", Icon = "bird" })
+local MainTab = Window:Tab({ Title = "Faem", Icon = "bird" })
 
 -- 2. ตัวแปรควบคุม
 local autoFarmActive = false
