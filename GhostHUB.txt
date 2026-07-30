@@ -152,7 +152,7 @@ local function runFarmLogic()
 end
 
 -- 3. Toggle
-MainTab:Toggle({
+Tab:Toggle({
     Title = "AutoFarm",
     Desc = "AutoFarmLevel",
     Value = false,
