@@ -58,10 +58,10 @@ local function runFarmLogic()
     -- ใส่พิกัด Vector3.new(x, y, z) ของจุดที่จะให้ไปบินรอที่เกาะนั้นๆ
     local function getQuestInfo()
         local level = Player.PlayerData.Experience.Level.Value 
-        if level >= 60 then return "Level 60", "Clown Boss", "2", Vector3.new(0, 100, 0) -- แก้เลขตรงนี้
-        elseif level >= 40 then return "Level 40", "Pirate Clown", "2", Vector3.new(0, 100, 0) -- แก้เลขตรงนี้
-        elseif level >= 25 then return "Level 25", "Bandit Boss", "1", Vector3.new(0, 100, 0)
-        else return "Level 1", "Thief", "1", Vector3.new(0, 100, 0) end
+        if level >= 60 then return "Level 60", "Clown Boss", "2", Vector3.new(2311.438477, 35.094444, -518.902466) -- แก้เลขตรงนี้
+        elseif level >= 40 then return "Level 40", "Pirate Clown", "2", Vector3.new(-2326.231689, 14.802058, -752.219788) -- แก้เลขตรงนี้
+        elseif level >= 25 then return "Level 25", "Bandit Boss", "1", Vector3.new(-1936.354004, 67.560974, -3391.557617)
+        else return "Level 1", "Thief", "1", Vector3.new(2422.309814, 45.494011, -3255.249023) end
     end
 
     local function acceptQuest(questName, giverIndex)
