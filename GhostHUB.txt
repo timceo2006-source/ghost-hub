@@ -9,11 +9,25 @@ local Window = WindUI:CreateWindow({
     Theme = "Dark",
 })
 
-local MainTab = Window:Tab({ Title = "Farm", Icon = "bird" })
-
 local autoFarmActive = false
 local loopTask = nil
-local heartbeatConnection = nil -- เพิ่มตัวแปรสำหรับ Heartbeat
+local heartbeatConnection = nil
+local TweenService = game:GetService("TweenService") -- เพิ่ม TweenService
+
+-- [ส่วนเพิ่ม] ฟังก์ชันหาโฟลเดอร์มอนสเตอร์ตามเลเวล
+local function GetTargetFolder(level)
+    local zones = workspace:FindFirstChild("NPC Zones")
+    if not zones then return nil end
+    
+    local islandName = "Starter Island" -- Default
+    if level >= 40 then 
+        islandName = "Desert Island"    -- เปลี่ยนชื่อให้ตรงกับ Folder ในเกม
+    elseif level >= 25 then
+        islandName = "Starter Island"   -- สมมติว่าเป็นชื่อเดิม
+    end
+    
+    return zones:FindFirstChild(islandName) and zones[islandName]:FindFirstChild("NPCS")
+end
 
 local function runFarmLogic()
     local Players = game:GetService("Players")
@@ -21,9 +35,11 @@ local function runFarmLogic()
     local Player = Players.LocalPlayer
     local lockedTarget = nil
 
+    -- (ฟังก์ชันเดิมคงไว้)
     local function getQuestInfo()
         local level = Player.PlayerData.Experience.Level.Value 
-        if level >= 25 then return "Level 25", "Bandit Boss"
+        if level >= 40 then return "Level 40", "Desert Bandit" -- ตัวอย่างชื่อมอน LV 40
+        elseif level >= 25 then return "Level 25", "Bandit Boss"
         elseif level >= 10 then return "Level 10", "Bandit"
         else return "Level 1", "Thief" end
     end
@@ -35,20 +51,21 @@ local function runFarmLogic()
         if questFunc and QuestGiver then pcall(function() questFunc:InvokeServer(QuestGiver, questName) end) end
     end
 
-    -- [ส่วนที่ 1: ลูปสมอง (หาเควสและหาเป้าหมาย - ไม่ต้องรันถี่มาก)]
     loopTask = task.spawn(function()
         while autoFarmActive do
             local Character = Player.Character
             if Character and Character:FindFirstChild("Humanoid") and Character.Humanoid.Health > 0 then
-                local TargetFolder = workspace:FindFirstChild("NPC Zones") and workspace["NPC Zones"]:FindFirstChild("Starter Island") and workspace["NPC Zones"]["Starter Island"]:FindFirstChild("NPCS")
+                local currentLevel = Player.PlayerData.Experience.Level.Value
+                local TargetFolder = GetTargetFolder(currentLevel) -- ใช้ฟังก์ชันใหม่
+
                 if TargetFolder then
-                    local currentLevel = Player.PlayerData.Experience.Level.Value
                     local _, targetName = getQuestInfo()
                     if Player.Quest.GiverName.Value == "" then acceptQuest(select(1, getQuestInfo())) end
 
                     if not (lockedTarget and lockedTarget:FindFirstChild("Humanoid") and lockedTarget.Humanoid.Health > 0) then
                         lockedTarget = nil
                         for _, obj in pairs(TargetFolder:GetChildren()) do
+                            -- logic การหาเป้าหมายเดิม
                             local isTarget = string.match(obj.Name, "^" .. targetName)
                             local isBoss = string.find(string.lower(obj.Name), "boss") ~= nil
                             if isTarget and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then
@@ -60,34 +77,42 @@ local function runFarmLogic()
                     end
                 end
             end
-            task.wait(0.5) -- หาเควสและมอนสเตอร์ทุก 0.5 วินาทีพอ
+            task.wait(0.5)
         end
     end)
 
-    -- [ส่วนที่ 2: ลูปเคลื่อนที่ (รันใน Heartbeat จะลื่นมาก)]
     heartbeatConnection = RunService.Heartbeat:Connect(function()
         if not autoFarmActive then return end
         local Character = Player.Character
+        local HRP = Character and Character:FindFirstChild("HumanoidRootPart")
         local tool = Character and (Character:FindFirstChild("Combat") or Player.Backpack:FindFirstChild("Combat"))
-        
-        -- เช็คอาวุธ (Logic เดิม)
-        if not tool and Character then
-            -- ใส่ Timer หน่วงไว้ข้างใน Heartbeat ได้ถ้าจำเป็น แต่ปกติจะไม่ทำ เพราะจะทำให้ลูปตาย
-        end
 
-        if lockedTarget and lockedTarget:FindFirstChild("HumanoidRootPart") and Character and Character:FindFirstChild("HumanoidRootPart") then
-            Character.Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
-            Character.HumanoidRootPart.CFrame = CFrame.lookAt(lockedTarget.HumanoidRootPart.Position + Vector3.new(0, 6, 0), lockedTarget.HumanoidRootPart.Position)
-            Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.zero
-            if tool then
-                if not Character:FindFirstChild("Combat") then Character.Humanoid:EquipTool(tool) end
-                tool:Activate()
+        if lockedTarget and lockedTarget:FindFirstChild("HumanoidRootPart") and HRP then
+            local targetPos = lockedTarget.HumanoidRootPart.Position + Vector3.new(0, 7, 0)
+            local distance = (HRP.Position - targetPos).Magnitude
+
+            -- [ส่วนเพิ่ม] เช็คระยะห่าง ถ้าไกลให้ Tween ถ้าใกล้ให้ Lock
+            if distance > 20 then
+                -- Tween ไปหา (ความเร็วปรับตามระยะทาง)
+                local tweenInfo = TweenInfo.new(distance / 200, Enum.EasingStyle.Linear)
+                TweenService:Create(HRP, tweenInfo, {CFrame = CFrame.new(targetPos)}):Play()
+            else
+                -- Lock ตำแหน่ง (เหมือนเดิม)
+                Character.Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+                HRP.CFrame = CFrame.lookAt(targetPos, lockedTarget.HumanoidRootPart.Position)
+                HRP.AssemblyLinearVelocity = Vector3.zero
+                
+                if tool then
+                    if not Character:FindFirstChild("Combat") then Character.Humanoid:EquipTool(tool) end
+                    tool:Activate()
+                end
             end
         elseif Character and Character:FindFirstChild("Humanoid") then
             Character.Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
         end
     end)
 end
+
 
 -- Callback
 MainTab:Toggle({
