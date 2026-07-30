@@ -9,7 +9,7 @@ local Window = WindUI:CreateWindow({
     Theme = "Dark",
 })
 
-local MainTab = Window:Tab({ Title = "FARM", Icon = "bird" })
+local MainTab = Window:Tab({ Title = "Farm", Icon = "bird" })
 
 local autoFarmActive = false
 local loopTask = nil
