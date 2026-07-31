@@ -43,7 +43,7 @@ local Workspace = game:GetService("Workspace")
 
 local Player = Players.LocalPlayer
 
--- ดึง RemoteEvent ผ่าน Net Framework ตามรูปของคุณ
+-- ดึง RemoteEvent ผ่าน Net Framework
 local sleitnickNet = ReplicatedStorage:WaitForChild("Packages")
     :WaitForChild("_Index")
     :WaitForChild("sleitnick_net@0.2.0")
@@ -58,10 +58,10 @@ local loopTask = nil
 local heartbeatConnection = nil
 
 -- ==========================================
--- 2. ฟังก์ชันช่วยเหลือ (อ่านค่า UI & ค้นหา มอนสเตอร์)
+-- 2. ฟังก์ชันตรวจสอบเควสและเลเวล
 -- ==========================================
 
--- ดึง Level จาก UI ตามพาธ: ScreenGui.HUD.Level
+-- ดึง Level จาก UI
 local function GetCurrentLevel()
     local levelUI = Player:FindFirstChild("PlayerGui")
         and Player.PlayerGui:FindFirstChild("ScreenGui")
@@ -74,6 +74,26 @@ local function GetCurrentLevel()
         return tonumber(levelNum) or 0
     end
     return 0
+end
+
+-- เช็คว่ามีเควสทำงานอยู่หรือไม่จาก Quest.Container ตามรูป
+local function HasActiveQuest()
+    local container = Player:FindFirstChild("PlayerGui")
+        and Player.PlayerGui:FindFirstChild("ScreenGui")
+        and Player.PlayerGui.ScreenGui:FindFirstChild("Quest")
+        and Player.PlayerGui.ScreenGui.Quest:FindFirstChild("Container")
+
+    if container then
+        -- หาก Container เปิดแสดงผลอยู่ หรือมีกี่องค์ประกอบด้านใน ถือว่ามีเควสอยู่แล้ว
+        if container.Visible then
+            for _, child in pairs(container:GetChildren()) do
+                if not child:IsA("UIListLayout") and not child:IsA("UIGridLayout") and child.Visible then
+                    return true
+                end
+            end
+        end
+    end
+    return false
 end
 
 -- ค้นหา Bandit ใน Workspace.Enemies
@@ -98,31 +118,32 @@ end
 local function runFarmLogic()
     local lockedTarget = nil
 
-    -- [ลูปสมอง] เลือกเป้าหมาย และ รับเควส
+    -- [ลูปสมอง] รับเควสเมื่อไม่มีเควส + ล็อกเป้าหมาย
     loopTask = task.spawn(function()
         while autoFarmActive do
             local Character = Player.Character
             if Character and Character:FindFirstChild("Humanoid") and Character.Humanoid.Health > 0 then
                 local currentLevel = GetCurrentLevel()
 
-                -- ทำงานเฉพาะช่วง Level 1 ถึง 100
                 if currentLevel >= 1 and currentLevel <= 100 then
-                    -- รับเควส Bandit (ID = 1)
-                    pcall(function()
-                        QuestEvent:FireServer("Request", { Id = 1 })
-                    end)
+                    -- ถ้าระบบตรวจพบว่ายังไม่มีเควสใน Container ถึงจะส่งสัญญาณรับเควส
+                    if not HasActiveQuest() then
+                        pcall(function()
+                            QuestEvent:FireServer("Request", { Id = 1 })
+                        end)
+                    end
 
-                    -- ค้นหาตัวเป้าหมายใหม่หากตัวเดิมตายหรือไม่มี
+                    -- ค้นหา Bandit
                     if not (lockedTarget and lockedTarget:FindFirstChild("Humanoid") and lockedTarget.Humanoid.Health > 0) then
                         lockedTarget = GetTargetBandit()
                     end
                 end
             end
-            task.wait(0.3)
+            task.wait(0.5)
         end
     end)
 
-    -- [ลูปเคลื่อนที่ & โจมตี] ทำงานทุกเฟรมเรต
+    -- [ลูปเคลื่อนที่ & โจมตี]
     heartbeatConnection = RunService.Heartbeat:Connect(function()
         if not autoFarmActive then return end
         local Character = Player.Character
@@ -131,14 +152,13 @@ local function runFarmLogic()
 
         if HRP and Humanoid and Humanoid.Health > 0 then
             if lockedTarget and lockedTarget:FindFirstChild("HumanoidRootPart") and lockedTarget.Humanoid.Health > 0 then
-                -- บังคับลอยตัวเพื่อไม่ให้ร่วง
                 Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
                 
-                -- วาปไปลอยอยู่เหนือหัว Bandit 4.5 หน่วย (ปรับหันหน้าลงมาตี)
+                -- วาปไปลอยอยู่เหนือหัว Bandit 4.5 หน่วย
                 local targetHRP = lockedTarget.HumanoidRootPart
                 HRP.CFrame = targetHRP.CFrame * CFrame.new(0, 4.5, 0) * CFrame.Angles(math.rad(-90), 0, 0)
 
-                -- ยิง Remote โจมตี "M1", "Combat"
+                -- ตีมอนสเตอร์
                 pcall(function()
                     ActionRemote:FireServer("M1", "Combat")
                 end)
@@ -148,22 +168,20 @@ local function runFarmLogic()
 end
 
 -- ==========================================
--- 4. ปุ่ม Toggle สำหรับใส่ใน UI Library
+-- 4. Toggle
 -- ==========================================
 Tab:Toggle({
     Title = "Auto Farm Bandit (Lv. 1 - 100)",
-    Desc = "รับเควส วาปไปตี Bandit อัตโนมัติ",
+    Desc = "ตรวจเควสอัตโนมัติ + วาปตี Bandit",
     Value = false,
     Callback = function(state)
         autoFarmActive = state
         if state then
             runFarmLogic()
         else
-            -- ยกเลิก Task ทั้งหมดเมื่อปิด Toggle
             if loopTask then task.cancel(loopTask) end
             if heartbeatConnection then heartbeatConnection:Disconnect() end
             
-            -- คืนค่าการเคลื่อนที่ปกติให้ตัวละคร
             local char = Player.Character
             if char and char:FindFirstChild("Humanoid") then
                 char.Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
