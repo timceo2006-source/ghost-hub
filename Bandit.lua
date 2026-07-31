@@ -34,12 +34,13 @@ local Tab = Window:Tab({
 })
 
 -- ==========================================
--- 1. ตั้งค่า Remote และตัวแปรระบบ
+-- 1. ตั้งค่า Remote และ Services
 -- ==========================================
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
 
 local Player = Players.LocalPlayer
 
@@ -54,14 +55,38 @@ local QuestEvent = sleitnickNet:WaitForChild("RE/QuestEvent")
 
 -- ตัวแปรควบคุมการทำงาน
 local autoFarmActive = false
-local loopTask = nil
-local heartbeatConnection = nil
+local farmThread = nil
+local noclipConnection = nil
+local currentTween = nil
 
 -- ==========================================
--- 2. ฟังก์ชันตรวจสอบเควสและเลเวล
+-- 2. ระบบ Noclip (กันติดสิ่งกีดขวางขณะ Tween)
+-- ==========================================
+local function EnableNoclip()
+    if noclipConnection then noclipConnection:Disconnect() end
+    noclipConnection = RunService.Stepped:Connect(function()
+        if autoFarmActive and Player.Character then
+            for _, part in pairs(Player.Character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+end
+
+local function DisableNoclip()
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+end
+
+-- ==========================================
+-- 3. ฟังก์ชันดึงค่า UI & มอนสเตอร์
 -- ==========================================
 
--- ดึง Level จาก UI
+-- ดึง Level จาก HUD
 local function GetCurrentLevel()
     local levelUI = Player:FindFirstChild("PlayerGui")
         and Player.PlayerGui:FindFirstChild("ScreenGui")
@@ -76,7 +101,7 @@ local function GetCurrentLevel()
     return 0
 end
 
--- เช็คว่ามีเควสทำงานอยู่หรือไม่จาก Quest.Container ตามรูป
+-- เช็คเควสจาก Quest.Container
 local function HasActiveQuest()
     local container = Player:FindFirstChild("PlayerGui")
         and Player.PlayerGui:FindFirstChild("ScreenGui")
@@ -84,12 +109,9 @@ local function HasActiveQuest()
         and Player.PlayerGui.ScreenGui.Quest:FindFirstChild("Container")
 
     if container then
-        -- หาก Container เปิดแสดงผลอยู่ หรือมีกี่องค์ประกอบด้านใน ถือว่ามีเควสอยู่แล้ว
-        if container.Visible then
-            for _, child in pairs(container:GetChildren()) do
-                if not child:IsA("UIListLayout") and not child:IsA("UIGridLayout") and child.Visible then
-                    return true
-                end
+        for _, child in pairs(container:GetChildren()) do
+            if not child:IsA("UIListLayout") and not child:IsA("UIGridLayout") then
+                if child.Visible then return true end
             end
         end
     end
@@ -113,79 +135,101 @@ local function GetTargetBandit()
 end
 
 -- ==========================================
--- 3. ฟังก์ชันหลัก Auto Farm
+-- 4. ฟังก์ชันเคลื่อนที่ด้วย Tween
+-- ==========================================
+local function TweenTo(targetCFrame, speed)
+    local char = Player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local distance = (hrp.Position - targetCFrame.Position).Magnitude
+    
+    -- คำนวณเวลาจากระยะทางและความเร็ว
+    local tweenSpeed = speed or 100 
+    local tweenInfo = TweenInfo.new(distance / tweenSpeed, Enum.EasingStyle.Linear)
+    
+    if currentTween then currentTween:Cancel() end
+    currentTween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
+    currentTween:Play()
+    return currentTween
+end
+
+-- ==========================================
+-- 5. ลูปหลัก Auto Farm
 -- ==========================================
 local function runFarmLogic()
-    local lockedTarget = nil
+    EnableNoclip()
 
-    -- [ลูปสมอง] รับเควสเมื่อไม่มีเควส + ล็อกเป้าหมาย
-    loopTask = task.spawn(function()
+    farmThread = task.spawn(function()
         while autoFarmActive do
-            local Character = Player.Character
-            if Character and Character:FindFirstChild("Humanoid") and Character.Humanoid.Health > 0 then
+            task.wait(0.1)
+            
+            local char = Player.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local hum = char and char:FindFirstChild("Humanoid")
+
+            if hrp and hum and hum.Health > 0 then
                 local currentLevel = GetCurrentLevel()
 
+                -- ตรวจสอบเงื่อนไขเลเวล 1 - 100
                 if currentLevel >= 1 and currentLevel <= 100 then
-                    -- ถ้าระบบตรวจพบว่ายังไม่มีเควสใน Container ถึงจะส่งสัญญาณรับเควส
+                    
+                    -- รับเควสอัตโนมัติหากยังไม่มีเควส
                     if not HasActiveQuest() then
                         pcall(function()
                             QuestEvent:FireServer("Request", { Id = 1 })
                         end)
                     end
 
-                    -- ค้นหา Bandit
-                    if not (lockedTarget and lockedTarget:FindFirstChild("Humanoid") and lockedTarget.Humanoid.Health > 0) then
-                        lockedTarget = GetTargetBandit()
+                    -- ค้นหาเป้าหมาย
+                    local target = GetTargetBandit()
+
+                    if target and target:FindFirstChild("HumanoidRootPart") and target.Humanoid.Health > 0 then
+                        local targetHRP = target.HumanoidRootPart
+                        -- ตำแหน่งเป้าหมาย: ลอยเหนือหัวมอนสเตอร์ 5 หน่วย (หันหน้าลง)
+                        local targetCFrame = targetHRP.CFrame * CFrame.new(0, 5, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+
+                        local dist = (hrp.Position - targetCFrame.Position).Magnitude
+                        
+                        -- ถ้าระยะห่างเกิน 5 หน่วย ให้ใช้ Tween บินไปหา
+                        if dist > 5 then
+                            TweenTo(targetCFrame, 90) -- ปรับความเร็วได้ตรงนี้ (แนะนำ 80 - 120)
+                            task.wait(0.1)
+                        else
+                            -- ถ้าอยู่ใกล้แล้ว ล็อกตำแหน่งไว้เหนือหัว
+                            hrp.CFrame = targetCFrame
+                        end
+
+                        -- ส่งสัญญาณโจมตี
+                        pcall(function()
+                            ActionRemote:FireServer("M1", "Combat")
+                        end)
+                    else
+                        -- ถ้านอกเขตหรือไม่มีมอนสเตอร์ ให้ยกเลิก Tween
+                        if currentTween then currentTween:Cancel() end
                     end
                 end
-            end
-            task.wait(0.5)
-        end
-    end)
-
-    -- [ลูปเคลื่อนที่ & โจมตี]
-    heartbeatConnection = RunService.Heartbeat:Connect(function()
-        if not autoFarmActive then return end
-        local Character = Player.Character
-        local HRP = Character and Character:FindFirstChild("HumanoidRootPart")
-        local Humanoid = Character and Character:FindFirstChild("Humanoid")
-
-        if HRP and Humanoid and Humanoid.Health > 0 then
-            if lockedTarget and lockedTarget:FindFirstChild("HumanoidRootPart") and lockedTarget.Humanoid.Health > 0 then
-                Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
-                
-                -- วาปไปลอยอยู่เหนือหัว Bandit 4.5 หน่วย
-                local targetHRP = lockedTarget.HumanoidRootPart
-                HRP.CFrame = targetHRP.CFrame * CFrame.new(0, 4.5, 0) * CFrame.Angles(math.rad(-90), 0, 0)
-
-                -- ตีมอนสเตอร์
-                pcall(function()
-                    ActionRemote:FireServer("M1", "Combat")
-                end)
             end
         end
     end)
 end
 
 -- ==========================================
--- 4. Toggle
+-- 6. Toggle สำหรับ UI Library
 -- ==========================================
 Tab:Toggle({
-    Title = "Auto Farm Bandit (Lv. 1 - 100)",
-    Desc = "ตรวจเควสอัตโนมัติ + วาปตี Bandit",
+    Title = "Auto Farm Bandit (Tween)",
+    Desc = "ใช้ระบบ Tween เคลื่อนที่ไปตี Bandit",
     Value = false,
     Callback = function(state)
         autoFarmActive = state
         if state then
             runFarmLogic()
         else
-            if loopTask then task.cancel(loopTask) end
-            if heartbeatConnection then heartbeatConnection:Disconnect() end
-            
-            local char = Player.Character
-            if char and char:FindFirstChild("Humanoid") then
-                char.Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-            end
+            -- ปิดการทำงาน และคืนค่าตัวละคร
+            if farmThread then task.cancel(farmThread) end
+            if currentTween then currentTween:Cancel() end
+            DisableNoclip()
         end
     end
 })
