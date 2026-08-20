@@ -100,13 +100,13 @@ local Dropdown = TabRoll:Dropdown({
     Desc = "Select multiple rarities to buy/stop",
     Values = {"Common", "Rare", "Epic", "Legendary", "Mythic", "Secret"},
     Value = {},
-    MultiSelect = true,
-    Callback = function(values)
-        selectedRarities = values
+    Multi = true,
+    AllowNone = true,
+    Callback = function(option) 
+        selectedRarities = option
     end,
 })
 
--- ฟังก์ชันตรวจสอบเรตติ้ง (รองรับทั้งแบบ Array และ Table เพื่อความเสถียร)
 local function isRaritySelected(rarityText)
     if not rarityText then return false end
     for _, selected in pairs(selectedRarities) do
@@ -117,6 +117,8 @@ local function isRaritySelected(rarityText)
     end
     return false
 end
+
+
 
 local ToggleRoll = TabRoll:Toggle({
     Title = "Auto Roll",
