@@ -8,7 +8,6 @@ local waveText = PlayerGui.MainUI.UITop.Top.Main.Wave.Frame.TextLabel
 local startButtonText = PlayerGui.MainUI.UITop.Top.Main.Start.Frame.TextLabel
 local RemoteEvent = game:GetService("ReplicatedStorage").Remotes.Fight.Start
 local stopWave = 70
-local selectedRarity = "All" -- เพิ่มตัวแปรที่ขาดตรงนี้เพื่อให้ Dropdown ทำงานได้สมบูรณ์
 
 local Window = WindUI:CreateWindow({
     Title = "Ghost Hub",
@@ -94,7 +93,6 @@ local TabRoll = Window:Tab({
     Locked = false,
 })
 
--- เปลี่ยนค่าเริ่มต้นเป็น Table เปล่าเพื่อรองรับการเลือกหลายอัน
 local selectedRarities = {}
 
 local Dropdown = TabRoll:Dropdown({
@@ -108,10 +106,10 @@ local Dropdown = TabRoll:Dropdown({
     end,
 })
 
+-- ฟังก์ชันตรวจสอบเรตติ้ง (รองรับทั้งแบบ Array และ Table เพื่อความเสถียร)
 local function isRaritySelected(rarityText)
     if not rarityText then return false end
     for _, selected in pairs(selectedRarities) do
-        -- รองรับทั้งกรณีที่ WindUI ส่งค่ามาเป็นตารางคีย์แบบ [1] = "Epic" หรือคีย์ชื่อเรตติ้ง
         local val = type(selected) == "table" and (selected.Name or selected[1]) or selected
         if type(val) == "string" and val:lower() == rarityText:lower() then
             return true
@@ -119,7 +117,6 @@ local function isRaritySelected(rarityText)
     end
     return false
 end
-
 
 local ToggleRoll = TabRoll:Toggle({
     Title = "Auto Roll",
@@ -142,17 +139,6 @@ local ToggleBuy = TabRoll:Toggle({
         _G.AutoBuy = state
     end,
 })
-
--- ฟังก์ชันเสริมสำหรับเช็คว่าเรตติ้งนี้ถูกเลือกไว้ใน Dropdown หรือยัง
-local function isRaritySelected(rarityText)
-    if not rarityText then return false end
-    for _, selected in pairs(selectedRarities) do
-        if type(selected) == "string" and selected:lower() == rarityText:lower() then
-            return true
-        end
-    end
-    return false
-end
 
 -- ลูปเช็คตัวละครเป้าหมาย (รองรับ Multi-select)
 task.spawn(function()
@@ -177,7 +163,6 @@ task.spawn(function()
                         return char.Head.BuyUI.Frame.Chance.TextLabel.Text
                     end)
                     if success and rarityText then
-                        -- เช็คเทียบกับรายการที่เลือกไว้หลายอัน
                         if isRaritySelected(rarityText) then
                             targetChar = char
                             targetExists = true
@@ -188,7 +173,6 @@ task.spawn(function()
             end
         end
         
-        -- ถ้าเปิด Auto Buy และเจอเป้าหมายที่เลือกไว้: สั่งหยุดสุ่ม และพุ่งไปซื้อให้เสร็จ
         if _G.AutoBuy and targetExists and targetChar then
             _G.IsBuying = true 
             local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -211,7 +195,6 @@ task.spawn(function()
             task.wait(0.4)
             _G.IsBuying = false
             
-        -- ถ้าปิด Auto Buy แต่เจอเป้าหมายที่เลือกไว้: แค่ล็อกสถานะไม่ให้ Auto Roll สุ่มต่อ
         elseif not _G.AutoBuy and targetExists then
             _G.IsBuying = true
         else
@@ -222,7 +205,7 @@ task.spawn(function()
     end
 end)
 
--- ลูป Auto Roll (ทำหน้าที่กดสุ่มที่ตู้สุ่มอย่างเดียว)
+-- ลูป Auto Roll
 task.spawn(function()
     while true do
         if _G.AutoRoll and not _G.IsBuying then
