@@ -73,7 +73,9 @@ task.spawn(function()
             
             if currentWaveNum >= stopWave then
                 RemoteEvent:FireServer("Stop")
-                _G.AutoPlay = false
+                task.wait(5)
+                RemoteEvent:FireServer("Start")
+                task.wait(3)
             else
                 if startButtonText.Text == "START" then
                     RemoteEvent:FireServer("Start")
