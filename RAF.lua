@@ -73,13 +73,13 @@ task.spawn(function()
             
             if currentWaveNum >= stopWave then
                 RemoteEvent:FireServer("Stop")
-                task.wait(5)
-                RemoteEvent:FireServer("Start")
                 task.wait(3)
+                RemoteEvent:FireServer("Start")
+                task.wait(2)
             else
                 if startButtonText.Text == "START" then
                     RemoteEvent:FireServer("Start")
-                    task.wait(3)
+                    task.wait(2)
                 elseif startButtonText.Text == "STOP" then
                 end
             end
