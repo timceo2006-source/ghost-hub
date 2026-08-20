@@ -107,12 +107,26 @@ local ToggleRoll = TabRoll:Toggle({
 task.spawn(function()
     while true do
         if _G.AutoRoll then
-            local myPlot
+            local myPlot = nil
+            
+            -- วนหา Plot ของตัวเอง (รองรับทั้งเช็ค Owner และเช็คชื่อ/โฟลเดอร์)
             for _, plot in ipairs(Plost:GetChildren()) do
-                local owner = plot:FindFirstChild("Owner")
-                if owner and owner.Value == LocalPlayer then
+                -- เช็คแบบยืดหยุ่น: หาจาก Owner หรือเช็คว่ามี Roll อยู่ข้างในและตัวละครยืนใกล้ หรือเช็คค่า Value ต่างๆ
+                local owner = plot:FindFirstChild("Owner") or plot:FindFirstChild("Player")
+                if (owner and (owner.Value == LocalPlayer or owner.Value == LocalPlayer.Name)) or plot.Name == "Plot" .. tostring(LocalPlayer.UserId) then
                     myPlot = plot
                     break
+                end
+            end
+            
+            -- ถ้ายังหาไม่เจอด้วยวิธีแรก ให้ใช้วิธีหา Plot ที่มีชิ้นส่วน Roll และใกล้ตัวที่สุดแทน
+            if not myPlot then
+                for _, plot in ipairs(Plost:GetChildren()) do
+                    if plot:FindFirstChild("Roll") then
+                        -- สมมติฐานเบื้องต้น ถ้าหาไม่เจอจริงๆ ให้ลองจับคู่กับ Plot ที่มีตู้ Roll อยู่
+                        myPlot = plot
+                        break
+                    end
                 end
             end
             
@@ -122,6 +136,7 @@ task.spawn(function()
                 local targetPart = rollModel:FindFirstChild("RollButton") and rollModel.RollButton:FindFirstChild("Button") or rollModel.PrimaryPart or rollModel:FindFirstChildWhichIsA("BasePart")
                 
                 if targetPart and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    -- สั่งวาปไปที่ตู้สุ่มของ Plot นั้นๆ
                     LocalPlayer.Character.HumanoidRootPart.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
                     task.wait(0.5)
                     
