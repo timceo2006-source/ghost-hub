@@ -118,11 +118,11 @@ task.spawn(function()
             
             if myPlot and myPlot:FindFirstChild("Roll") then
                 local rollModel = myPlot.Roll
-                local rollButtonPart = rollModel:FindFirstChild("RollButton") and rollModel.RollButton:FindFirstChild("Button")
                 local prompt = rollModel:FindFirstChild("RollPrompt", true)
+                local targetPart = rollModel:FindFirstChild("RollButton") and rollModel.RollButton:FindFirstChild("Button") or rollModel.PrimaryPart or rollModel:FindFirstChildWhichIsA("BasePart")
                 
-                if rollButtonPart and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    LocalPlayer.Character.HumanoidRootPart.CFrame = rollButtonPart.CFrame + Vector3.new(0, 3, 0)
+                if targetPart and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
                     task.wait(0.5)
                     
                     if prompt then
