@@ -109,15 +109,17 @@ task.spawn(function()
         if _G.AutoRoll then
             local myPlot = nil
             
-            -- วนหา Plot ที่มี Attribute ชื่อ Owner ตรงกับชื่อของคุณ
+            -- ค้นหาเฉพาะ Plot ที่มี Attribute Owner เป็นชื่อเราแบบเป๊ะๆ เท่านั้น
             for _, plot in ipairs(Plost:GetChildren()) do
                 local plotOwner = plot:GetAttribute("Owner")
-                if plotOwner and tostring(plotOwner) == LocalPlayer.Name then
+                -- เช็คว่ามีค่าและตรงกับชื่อเราจริงๆ (ตัดช่องว่างเผื่อพิมพ์เกิน)
+                if plotOwner and type(plotOwner) == "string" and plotOwner:gsub("%s+", "") == LocalPlayer.Name:gsub("%s+", "") then
                     myPlot = plot
                     break
                 end
             end
             
+            -- ถ้าหา Plot ของตัวเองเจอจริงๆ ถึงจะทำงาน
             if myPlot and myPlot:FindFirstChild("Roll") then
                 local rollModel = myPlot.Roll
                 local prompt = rollModel:FindFirstChild("RollPrompt", true)
