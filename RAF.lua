@@ -114,6 +114,17 @@ local ToggleRoll = TabRoll:Toggle({
     end,
 })
 
+local ToggleBuy = TabRoll:Toggle({
+    Title = "Auto Buy",
+    Desc = "Automatically buy rolled character",
+    Icon = "shopping-cart",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(state) 
+        _G.AutoBuy = state
+    end,
+})
+
 task.spawn(function()
     while true do
         if _G.AutoRoll then
@@ -141,11 +152,16 @@ task.spawn(function()
                         task.wait(0.5)
                     end
                     
-                    -- เช็คระดับจากตู้สุ่มหรือยูนิตที่ปรากฏ (หากมี Attribute หรือชื่อระดับกำกับ)
-                    -- ถ้าเลือก All หรือระดับตรงกับที่ตั้งไว้ ถึงจะทำการกดสุ่มต่อ
                     local currentRolledRarity = rollModel:GetAttribute("Rarity") or "All"
                     
-                    if selectedRarity == "All" or currentRolledRarity == selectedRarity then
+                    if selectedRarity ~= "All" and currentRolledRarity == selectedRarity then
+                        _G.AutoRoll = false
+                        if _G.AutoBuy then
+                            pcall(function()
+                                BuyRemote:FireServer(13, 3)
+                            end)
+                        end
+                    else
                         if prompt then
                             fireproximityprompt(prompt)
                         end
@@ -154,5 +170,16 @@ task.spawn(function()
             end
         end
         task.wait(0.5)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        if _G.AutoBuy and not _G.AutoRoll then
+            pcall(function()
+                BuyRemote:FireServer(13, 3)
+            end)
+        end
+        task.wait(1)
     end
 end)
