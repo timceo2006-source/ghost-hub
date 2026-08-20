@@ -187,6 +187,104 @@ task.spawn(function()
         task.wait(0.5)
     end
 end)
+local TabRoll = Window:Tab({
+    Title = "Roll & Buy",
+    Locked = false,
+})
+
+local Dropdown = TabRoll:Dropdown({
+    Title = "Select Target Rarity",
+    Desc = "Buy and continue rolling when this rarity appears",
+    Values = {"All", "Common", "Rare", "Epic", "Legendary", "Mythic", "Secret"},
+    Value = "All",
+    Callback = function(value)
+        selectedRarity = value
+    end,
+})
+
+local ToggleRoll = TabRoll:Toggle({
+    Title = "Auto Roll & Buy",
+    Desc = "Auto roll, buy target rarity, and loop",
+    Icon = "dice-5",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(state) 
+        _G.AutoRoll = state
+    end,
+})
+
+task.spawn(function()
+    while true do
+        if _G.AutoRoll then
+            local myPlot = nil
+            
+            for _, plot in ipairs(Plost:GetChildren()) do
+                local plotOwner = plot:GetAttribute("Owner")
+                if plotOwner and type(plotOwner) == "string" and plotOwner:gsub("%s+", "") == LocalPlayer.Name:gsub("%s+", "") then
+                    myPlot = plot
+                    break
+                end
+            end
+            
+            if myPlot then
+                local charactersFolder = myPlot:FindFirstChild("Characters")
+                local targetChar = nil
+                local targetRarityMatch = false
+                
+                if charactersFolder then
+                    for _, char in ipairs(charactersFolder:GetChildren()) do
+                        local success, rarityText = pcall(function()
+                            return char.Head.BuyUI.Frame.Chance.TextLabel.Text
+                        end)
+                        
+                        if success and rarityText then
+                            if selectedRarity == "All" or rarityText:lower() == selectedRarity:lower() then
+                                targetChar = char
+                                targetRarityMatch = true
+                                break
+                            end
+                        end
+                    end
+                end
+                
+                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                
+                if targetRarityMatch and targetChar and hrp then
+                    local buyPart = targetChar:FindFirstChild("Head") or targetChar:FindFirstChildWhichIsA("BasePart")
+                    if buyPart then
+                        hrp.CFrame = buyPart.CFrame + Vector3.new(0, 3, 0)
+                        task.wait(0.5)
+                        
+                        local prompt = targetChar:FindFirstChild("ProximityPrompt", true) or targetChar:FindFirstChildWhichIsA("ProximityPrompt", true)
+                        if prompt then
+                            fireproximityprompt(prompt)
+                            task.wait(0.5)
+                        end
+                    end
+                else
+                    local rollModel = myPlot:FindFirstChild("Roll")
+                    if rollModel then
+                        local prompt = rollModel:FindFirstChild("RollPrompt", true)
+                        local targetPart = rollModel:FindFirstChild("RollButton") and rollModel.RollButton:FindFirstChild("Button") or rollModel.PrimaryPart or rollModel:FindFirstChildWhichIsA("BasePart")
+                        
+                        if targetPart and hrp then
+                            local targetPos = targetPart.Position + Vector3.new(0, 3, 0)
+                            if (hrp.Position - targetPos).Magnitude > 8 then
+                                hrp.CFrame = CFrame.new(targetPos)
+                                task.wait(0.5)
+                            end
+                            
+                            if prompt then
+                                fireproximityprompt(prompt)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        task.wait(0.5)
+    end
+end)
     Title = "Roll & Buy",
     Locked = false,
 })
