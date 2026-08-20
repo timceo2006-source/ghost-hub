@@ -94,8 +94,8 @@ local TabRoll = Window:Tab({
 })
 
 local Dropdown = TabRoll:Dropdown({
-    Title = "Select Rarity",
-    Desc = "Choose target rarity to roll",
+    Title = "Select Target Rarity",
+    Desc = "Stop and Buy when this rarity appears",
     Values = {"All", "Common", "Rare", "Epic", "Legendary", "Mythic", "Secret"},
     Value = "All",
     Callback = function(value)
@@ -104,23 +104,13 @@ local Dropdown = TabRoll:Dropdown({
 })
 
 local ToggleRoll = TabRoll:Toggle({
-    Title = "Auto Roll",
-    Desc = "Toggle Description",
+    Title = "Auto Roll & Buy",
+    Desc = "Auto roll and buy matching rarity",
     Icon = "dice-5",
     Type = "Checkbox",
     Value = false,
     Callback = function(state) 
         _G.AutoRoll = state
-    end,
-})
-
-local ToggleBuy = TabRoll:Toggle({
-    Title = "Auto Buy",
-    Desc = "Automatically buy rolled character",
-    Icon = "shopping-cart",
-    Type = "Checkbox",
-    Value = false,
-    Callback = function(state) 
         _G.AutoBuy = state
     end,
 })
@@ -138,30 +128,46 @@ task.spawn(function()
                 end
             end
             
-            if myPlot and myPlot:FindFirstChild("Roll") then
-                local rollModel = myPlot.Roll
-                local prompt = rollModel:FindFirstChild("RollPrompt", true)
-                local targetPart = rollModel:FindFirstChild("RollButton") and rollModel.RollButton:FindFirstChild("Button") or rollModel.PrimaryPart or rollModel:FindFirstChildWhichIsA("BasePart")
+            if myPlot then
+                -- เช็คว่ามีตัวละครที่สุ่มออกมาแล้วอยู่ในแปลงรึยัง และเช็คระดับจาก TextLabel
+                local charactersFolder = myPlot:FindFirstChild("Characters")
+                local targetFound = false
                 
-                if targetPart and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    local hrp = LocalPlayer.Character.HumanoidRootPart
-                    local targetPos = targetPart.Position + Vector3.new(0, 3, 0)
-                    
-                    if (hrp.Position - targetPos).Magnitude > 8 then
-                        hrp.CFrame = CFrame.new(targetPos)
-                        task.wait(0.5)
-                    end
-                    
-                    local currentRolledRarity = rollModel:GetAttribute("Rarity") or "All"
-                    
-                    if selectedRarity ~= "All" and currentRolledRarity == selectedRarity then
-                        _G.AutoRoll = false
-                        if _G.AutoBuy then
-                            pcall(function()
-                                BuyRemote:FireServer(13, 3)
-                            end)
+                if charactersFolder then
+                    for _, char in ipairs(charactersFolder:GetChildren()) do
+                        local success, rarityText = pcall(function()
+                            return char.Head.BuyUI.Frame.Chance.TextLabel.Text
+                        end)
+                        
+                        if success and rarityText then
+                            if selectedRarity == "All" or rarityText:lower() == selectedRarity:lower() then
+                                targetFound = true
+                                local prompt = char:FindFirstChild("ProximityPrompt", true) or char:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                if prompt then
+                                    fireproximityprompt(prompt)
+                                    print("เจอตัวระดับเป้าหมายแล้ว:", rarityText)
+                                    task.wait(1)
+                                end
+                            end
                         end
-                    else
+                    end
+                end
+                
+                -- ถ้ายังไม่เจอตัวตามระดับที่ต้องการ ให้ทำการกด Roll ต่อ
+                if not targetFound and myPlot:FindFirstChild("Roll") then
+                    local rollModel = myPlot.Roll
+                    local prompt = rollModel:FindFirstChild("RollPrompt", true)
+                    local targetPart = rollModel:FindFirstChild("RollButton") and rollModel.RollButton:FindFirstChild("Button") or rollModel.PrimaryPart or rollModel:FindFirstChildWhichIsA("BasePart")
+                    
+                    if targetPart and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        local hrp = LocalPlayer.Character.HumanoidRootPart
+                        local targetPos = targetPart.Position + Vector3.new(0, 3, 0)
+                        
+                        if (hrp.Position - targetPos).Magnitude > 8 then
+                            hrp.CFrame = CFrame.new(targetPos)
+                            task.wait(0.5)
+                        end
+                        
                         if prompt then
                             fireproximityprompt(prompt)
                         end
@@ -170,16 +176,5 @@ task.spawn(function()
             end
         end
         task.wait(0.5)
-    end
-end)
-
-task.spawn(function()
-    while true do
-        if _G.AutoBuy and not _G.AutoRoll then
-            pcall(function()
-                BuyRemote:FireServer(13, 3)
-            end)
-        end
-        task.wait(1)
     end
 end)
