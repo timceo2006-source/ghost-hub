@@ -94,15 +94,29 @@ local TabRoll = Window:Tab({
     Locked = false,
 })
 
+local selectedRarities = {}
+
 local Dropdown = TabRoll:Dropdown({
-    Title = "Select Target Rarity",
-    Desc = "Buy and continue rolling when this rarity appears",
-    Values = {"All", "Common", "Rare", "Epic", "Legendary", "Mythic", "Secret"},
-    Value = "All",
-    Callback = function(value)
-        selectedRarity = value
+    Title = "Select Target Rarities",
+    Desc = "Select multiple rarities to buy/stop",
+    Values = {"Common", "Rare", "Epic", "Legendary", "Mythic", "Secret"},
+    Value = {},
+    MultiSelect = true,
+    Callback = function(values)
+        selectedRarities = values
     end,
 })
+
+local function isRaritySelected(rarityText)
+    if not rarityText then return false end
+    for _, selected in pairs(selectedRarities) do
+        if type(selected) == "string" and selected:lower() == rarityText:lower() then
+            return true
+        end
+    end
+    return false
+end
+
 
 local ToggleRoll = TabRoll:Toggle({
     Title = "Auto Roll",
