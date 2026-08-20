@@ -106,7 +106,7 @@ local Dropdown = TabRoll:Dropdown({
 
 local ToggleRoll = TabRoll:Toggle({
     Title = "Auto Roll",
-    Desc = "Rolls at machine smoothly without checking characters",
+    Desc = "Stays at the machine and rolls smoothly",
     Icon = "dice-5",
     Type = "Checkbox",
     Value = false,
@@ -126,8 +126,9 @@ local ToggleBuy = TabRoll:Toggle({
     end,
 })
 
--- ลูป Auto Roll (ทำหน้าที่กดสุ่มอย่างเดียว นิ่ง ไม่กระดุกกระดิ๊ก และหยุดเมื่อ Auto Buy สั่งล็อก)
+-- ลูป Auto Roll (วาปมายืนที่ตู้ครั้งเดียว แล้วกดสุ่มรัวๆ โดยไม่ขยับไปไหนอีกเลย)
 task.spawn(function()
+    local hasTeleported = false
     while true do
         if _G.AutoRoll and not _G.IsBuying then
             local myPlot = nil
@@ -150,8 +151,8 @@ task.spawn(function()
                     if targetPart and hrp then
                         local targetPos = targetPart.Position + Vector3.new(0, 3, 0)
                         
-                        -- เช็คระยะ ถ้ายังไกลค่อยวาปไป แต่ถ้าอยู่ใกล้แล้วจะไม่เซ็ต CFrame ซ้ำซ้อนเพื่อกันกระดุกกระดิ๊ก
-                        if (hrp.Position - targetPos).Magnitude > 6 then
+                        -- วาปไปแค่ครั้งแรกหรือถ้าตัวละครกระเด็นออกห่างเกินไปจริงๆ ถึงจะดึงกลับมานิ่งๆ ที่เดิม
+                        if (hrp.Position - targetPos).Magnitude > 4 then
                             hrp.CFrame = CFrame.new(targetPos)
                             task.wait(0.2)
                         end
@@ -164,12 +165,14 @@ task.spawn(function()
                     end
                 end
             end
+        else
+            hasTeleported = false
         end
-        task.wait(0.4)
+        task.wait(0.3)
     end
 end)
 
--- ลูป Auto Buy (เช็คตัวละครเป้าหมาย สั่งหยุดสุ่ม และโฟกัสซื้อจนจบ)
+-- ลูป Auto Buy (เช็คตัวละครเป้าหมาย สั่งหยุดสุ่ม และพุ่งไปซื้อจนเสร็จ)
 task.spawn(function()
     while true do
         if _G.AutoBuy then
@@ -206,7 +209,7 @@ task.spawn(function()
                 local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 
                 if targetRarityMatch and targetChar and hrp then
-                    _G.IsBuying = true -- สั่งล็อกทันที ห้ามไม่ให้ Auto Roll ทำงานแทรก
+                    _G.IsBuying = true -- สั่งหยุด Auto Roll ทันทีเพื่อให้ตัวละครไม่สลับไปมา
                     local buyPart = targetChar:FindFirstChild("Head") or targetChar:FindFirstChildWhichIsA("BasePart")
                     
                     if buyPart then
@@ -229,7 +232,7 @@ task.spawn(function()
                             end
                         end
                     end
-                    _G.IsBuying = false -- ปลดล็อกให้ Auto Roll กลับไปสุ่มต่อเมื่อซื้อเสร็จ
+                    _G.IsBuying = false -- ปลดล็อกให้ Auto Roll กลับไปสุ่มต่อ
                 end
             end
         end
