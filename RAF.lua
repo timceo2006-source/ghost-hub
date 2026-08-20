@@ -107,13 +107,22 @@ local ToggleRoll = TabRoll:Toggle({
 task.spawn(function()
     while true do
         if _G.AutoRoll then
-            local targetPlot = Plost:FindFirstChild("Plot4")
-            if targetPlot and targetPlot:FindFirstChild("Roll") and targetPlot.Roll:FindFirstChild("RollButton") then
-                local rollButtonPart = targetPlot.Roll.RollButton:FindFirstChild("Button")
-                local prompt = targetPlot.Roll.RollButton:FindFirstChild("RollPrompt", true)
+            local myPlot
+            for _, plot in ipairs(Plost:GetChildren()) do
+                local owner = plot:FindFirstChild("Owner")
+                if owner and owner.Value == LocalPlayer then
+                    myPlot = plot
+                    break
+                end
+            end
+            
+            if myPlot and myPlot:FindFirstChild("Roll") then
+                local rollModel = myPlot.Roll
+                local rollButtonPart = rollModel:FindFirstChild("RollButton") and rollModel.RollButton:FindFirstChild("Button")
+                local prompt = rollModel:FindFirstChild("RollPrompt", true)
                 
                 if rollButtonPart and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(-103.975288, 18.214918, -236.543503)
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = rollButtonPart.CFrame + Vector3.new(0, 3, 0)
                     task.wait(0.5)
                     
                     if prompt then
