@@ -115,6 +115,17 @@ local ToggleRoll = TabRoll:Toggle({
     end,
 })
 
+local ToggleRoll = TabRoll:Toggle({
+    Title = "Auto Roll",
+    Desc = "Stays at the machine and rolls smoothly",
+    Icon = "dice-5",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(state) 
+        _G.AutoRoll = state
+    end,
+})
+
 local ToggleBuy = TabRoll:Toggle({
     Title = "Auto Buy Target",
     Desc = "Focuses on buying target rarity and pauses rolling",
@@ -126,9 +137,8 @@ local ToggleBuy = TabRoll:Toggle({
     end,
 })
 
--- ลูป Auto Roll (วาปมายืนที่ตู้ครั้งเดียว แล้วกดสุ่มรัวๆ โดยไม่ขยับไปไหนอีกเลย)
+-- ลูป Auto Roll (ยืนกดสุ่มนิ่งๆ ที่ตู้ โดยจะทำงานก็ต่อเมื่อไม่ได้อยู่ในสถานะซื้อ)
 task.spawn(function()
-    local hasTeleported = false
     while true do
         if _G.AutoRoll and not _G.IsBuying then
             local myPlot = nil
@@ -151,7 +161,7 @@ task.spawn(function()
                     if targetPart and hrp then
                         local targetPos = targetPart.Position + Vector3.new(0, 3, 0)
                         
-                        -- วาปไปแค่ครั้งแรกหรือถ้าตัวละครกระเด็นออกห่างเกินไปจริงๆ ถึงจะดึงกลับมานิ่งๆ ที่เดิม
+                        -- ล็อควาปมายืนที่ตู้แค่นิ่งๆ ถ้าไม่ออกนอกระยะจะไม่ดึงซ้ำซ้อนให้กระดุกกระดิ๊ก
                         if (hrp.Position - targetPos).Magnitude > 4 then
                             hrp.CFrame = CFrame.new(targetPos)
                             task.wait(0.2)
@@ -165,14 +175,12 @@ task.spawn(function()
                     end
                 end
             end
-        else
-            hasTeleported = false
         end
-        task.wait(0.3)
+        task.wait(0.4)
     end
 end)
 
--- ลูป Auto Buy (เช็คตัวละครเป้าหมาย สั่งหยุดสุ่ม และพุ่งไปซื้อจนเสร็จ)
+-- ลูป Auto Buy (เจอตัวเป้าหมายแล้ว ล็อกนิ่ง โฟกัสซื้อตัวนั้นจนกว่าจะสำเร็จ)
 task.spawn(function()
     while true do
         if _G.AutoBuy then
@@ -209,30 +217,28 @@ task.spawn(function()
                 local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 
                 if targetRarityMatch and targetChar and hrp then
-                    _G.IsBuying = true -- สั่งหยุด Auto Roll ทันทีเพื่อให้ตัวละครไม่สลับไปมา
+                    _G.IsBuying = true -- สั่งหยุด Auto Roll ทันทีแบบเด็ดขาด
                     local buyPart = targetChar:FindFirstChild("Head") or targetChar:FindFirstChildWhichIsA("BasePart")
                     
                     if buyPart then
+                        -- วาปไปหาตัวละครเป้าหมาย
                         hrp.CFrame = buyPart.CFrame + Vector3.new(0, 3, 0)
-                        task.wait(0.5) -- รอตัวละครนิ่ง
+                        task.wait(0.5) -- รอให้นิ่ง
                         
                         local prompt = targetChar:FindFirstChild("ProximityPrompt", true) or targetChar:FindFirstChildWhichIsA("ProximityPrompt", true)
                         if prompt then
-                            pcall(function()
-                                fireproximityprompt(prompt)
-                            end)
-                            
-                            task.wait(0.8) -- รอระบบหักเงิน
-                            
-                            -- เช็คว่าถ้าเงินไม่พอ (UI ซื้อยังค้างอยู่) ให้หยุด Auto Buy
-                            local checkUI = targetChar:FindFirstChild("Head") and targetChar.Head:FindFirstChild("BuyUI")
-                            if checkUI and checkUI.Enabled then
-                                _G.AutoBuy = false
-                                warn("Auto Buy Stopped: เงินไม่พอซื้อตัวละครเป้าหมาย!")
-                            end
+                            -- วนลูปกดซื้อซ้ำๆ จนกว่าหน้าต่างซื้อ (BuyUI) จะหายไปหรือตัวละครถูกซื้อสำเร็จ
+                            repeat
+                                pcall(function()
+                                    fireproximityprompt(prompt)
+                                end)
+                                task.wait(0.4)
+                            until not targetChar.Parent or not targetChar:FindFirstChild("Head") or not targetChar.Head:FindFirstChild("BuyUI") or not targetChar.Head.BuyUI.Enabled
                         end
                     end
-                    _G.IsBuying = false -- ปลดล็อกให้ Auto Roll กลับไปสุ่มต่อ
+                    
+                    task.wait(0.3)
+                    _G.IsBuying = false -- ซื้อเสร็จแล้วค่อยปลดล็อกให้ Auto Roll กลับไปสุ่มต่อ
                 end
             end
         end
