@@ -101,12 +101,25 @@ local Dropdown = TabRoll:Dropdown({
     Title = "Select Target Rarities",
     Desc = "Select multiple rarities to buy/stop",
     Values = {"Common", "Rare", "Epic", "Legendary", "Mythic", "Secret"},
-    Value = {}, -- ค่าเริ่มต้นเป็นค่าว่าง
-    MultiSelect = true, -- เปิดใช้งานเลือกหลายอัน
+    Value = {},
+    MultiSelect = true,
     Callback = function(values)
         selectedRarities = values
     end,
 })
+
+local function isRaritySelected(rarityText)
+    if not rarityText then return false end
+    for _, selected in pairs(selectedRarities) do
+        -- รองรับทั้งกรณีที่ WindUI ส่งค่ามาเป็นตารางคีย์แบบ [1] = "Epic" หรือคีย์ชื่อเรตติ้ง
+        local val = type(selected) == "table" and (selected.Name or selected[1]) or selected
+        if type(val) == "string" and val:lower() == rarityText:lower() then
+            return true
+        end
+    end
+    return false
+end
+
 
 local ToggleRoll = TabRoll:Toggle({
     Title = "Auto Roll",
