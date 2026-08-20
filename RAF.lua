@@ -106,7 +106,7 @@ local Dropdown = TabRoll:Dropdown({
 
 local ToggleRoll = TabRoll:Toggle({
     Title = "Auto Roll",
-    Desc = "Rolls at machine only (Does not chase characters)",
+    Desc = "Rolls at machine smoothly without checking characters",
     Icon = "dice-5",
     Type = "Checkbox",
     Value = false,
@@ -117,7 +117,7 @@ local ToggleRoll = TabRoll:Toggle({
 
 local ToggleBuy = TabRoll:Toggle({
     Title = "Auto Buy Target",
-    Desc = "Focuses on finding, walking to, and buying the target rarity",
+    Desc = "Focuses on buying target rarity and pauses rolling",
     Icon = "shopping-cart",
     Type = "Checkbox",
     Value = false,
@@ -126,10 +126,9 @@ local ToggleBuy = TabRoll:Toggle({
     end,
 })
 
--- ลูป Auto Roll (ทำหน้าที่กดตู้สุ่มอย่างเดียว ไม่สนใจตัวละคร)
+-- ลูป Auto Roll (ทำหน้าที่กดสุ่มอย่างเดียว นิ่ง ไม่กระดุกกระดิ๊ก และหยุดเมื่อ Auto Buy สั่งล็อก)
 task.spawn(function()
     while true do
-        -- ถ้าเปิดออโต้สุ่ม และไม่ได้อยู่ในสถานะกำลังซื้อ (เผื่อให้ Auto Buy ล็อกจังหวะไว้ได้)
         if _G.AutoRoll and not _G.IsBuying then
             local myPlot = nil
             for _, plot in ipairs(Plost:GetChildren()) do
@@ -150,9 +149,11 @@ task.spawn(function()
                     
                     if targetPart and hrp then
                         local targetPos = targetPart.Position + Vector3.new(0, 3, 0)
-                        if (hrp.Position - targetPos).Magnitude > 10 then
+                        
+                        -- เช็คระยะ ถ้ายังไกลค่อยวาปไป แต่ถ้าอยู่ใกล้แล้วจะไม่เซ็ต CFrame ซ้ำซ้อนเพื่อกันกระดุกกระดิ๊ก
+                        if (hrp.Position - targetPos).Magnitude > 6 then
                             hrp.CFrame = CFrame.new(targetPos)
-                            task.wait(0.5)
+                            task.wait(0.2)
                         end
                         
                         if prompt then
@@ -164,11 +165,11 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.3)
+        task.wait(0.4)
     end
 end)
 
--- ลูป Auto Buy (หน้าที่เช็คตัวละคร, สั่งหยุดสุ่ม, และโฟกัสซื้อจนจบ)
+-- ลูป Auto Buy (เช็คตัวละครเป้าหมาย สั่งหยุดสุ่ม และโฟกัสซื้อจนจบ)
 task.spawn(function()
     while true do
         if _G.AutoBuy then
@@ -205,13 +206,12 @@ task.spawn(function()
                 local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 
                 if targetRarityMatch and targetChar and hrp then
-                    _G.IsBuying = true -- สั่งห้ามไม่ให้ Auto Roll ทำงานแทรก (หยุดสุ่มทันที)
+                    _G.IsBuying = true -- สั่งล็อกทันที ห้ามไม่ให้ Auto Roll ทำงานแทรก
                     local buyPart = targetChar:FindFirstChild("Head") or targetChar:FindFirstChildWhichIsA("BasePart")
                     
                     if buyPart then
-                        -- วาปไปโฟกัสที่ตัวละครเป้าหมาย
                         hrp.CFrame = buyPart.CFrame + Vector3.new(0, 3, 0)
-                        task.wait(0.6) -- รอให้ตัวละครนิ่งสนิท
+                        task.wait(0.5) -- รอตัวละครนิ่ง
                         
                         local prompt = targetChar:FindFirstChild("ProximityPrompt", true) or targetChar:FindFirstChildWhichIsA("ProximityPrompt", true)
                         if prompt then
@@ -219,7 +219,7 @@ task.spawn(function()
                                 fireproximityprompt(prompt)
                             end)
                             
-                            task.wait(0.8) -- รอระบบหักเงินและบันทึก
+                            task.wait(0.8) -- รอระบบหักเงิน
                             
                             -- เช็คว่าถ้าเงินไม่พอ (UI ซื้อยังค้างอยู่) ให้หยุด Auto Buy
                             local checkUI = targetChar:FindFirstChild("Head") and targetChar.Head:FindFirstChild("BuyUI")
@@ -229,7 +229,7 @@ task.spawn(function()
                             end
                         end
                     end
-                    _G.IsBuying = false -- ปลดล็อกให้ Auto Roll กลับไปทำงานต่อได้เมื่อซื้อเสร็จ
+                    _G.IsBuying = false -- ปลดล็อกให้ Auto Roll กลับไปสุ่มต่อเมื่อซื้อเสร็จ
                 end
             end
         end
