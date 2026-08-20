@@ -93,6 +93,16 @@ local TabRoll = Window:Tab({
     Locked = false,
 })
 
+local Dropdown = TabRoll:Dropdown({
+    Title = "Select Rarity",
+    Desc = "Choose target rarity to roll",
+    Values = {"All", "Common", "Rare", "Epic", "Legendary", "Mythic", "Secret"},
+    Value = "All",
+    Callback = function(value)
+        selectedRarity = value
+    end,
+})
+
 local ToggleRoll = TabRoll:Toggle({
     Title = "Auto Roll",
     Desc = "Toggle Description",
@@ -109,32 +119,40 @@ task.spawn(function()
         if _G.AutoRoll then
             local myPlot = nil
             
-            -- ค้นหาเฉพาะ Plot ที่มี Attribute Owner เป็นชื่อเราแบบเป๊ะๆ เท่านั้น
             for _, plot in ipairs(Plost:GetChildren()) do
                 local plotOwner = plot:GetAttribute("Owner")
-                -- เช็คว่ามีค่าและตรงกับชื่อเราจริงๆ (ตัดช่องว่างเผื่อพิมพ์เกิน)
                 if plotOwner and type(plotOwner) == "string" and plotOwner:gsub("%s+", "") == LocalPlayer.Name:gsub("%s+", "") then
                     myPlot = plot
                     break
                 end
             end
             
-            -- ถ้าหา Plot ของตัวเองเจอจริงๆ ถึงจะทำงาน
             if myPlot and myPlot:FindFirstChild("Roll") then
                 local rollModel = myPlot.Roll
                 local prompt = rollModel:FindFirstChild("RollPrompt", true)
                 local targetPart = rollModel:FindFirstChild("RollButton") and rollModel.RollButton:FindFirstChild("Button") or rollModel.PrimaryPart or rollModel:FindFirstChildWhichIsA("BasePart")
                 
                 if targetPart and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    LocalPlayer.Character.HumanoidRootPart.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
-                    task.wait(0.5)
+                    local hrp = LocalPlayer.Character.HumanoidRootPart
+                    local targetPos = targetPart.Position + Vector3.new(0, 3, 0)
                     
-                    if prompt then
-                        fireproximityprompt(prompt)
+                    if (hrp.Position - targetPos).Magnitude > 8 then
+                        hrp.CFrame = CFrame.new(targetPos)
+                        task.wait(0.5)
+                    end
+                    
+                    -- เช็คระดับจากตู้สุ่มหรือยูนิตที่ปรากฏ (หากมี Attribute หรือชื่อระดับกำกับ)
+                    -- ถ้าเลือก All หรือระดับตรงกับที่ตั้งไว้ ถึงจะทำการกดสุ่มต่อ
+                    local currentRolledRarity = rollModel:GetAttribute("Rarity") or "All"
+                    
+                    if selectedRarity == "All" or currentRolledRarity == selectedRarity then
+                        if prompt then
+                            fireproximityprompt(prompt)
+                        end
                     end
                 end
             end
         end
-        task.wait(1)
+        task.wait(0.5)
     end
 end)
