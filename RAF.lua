@@ -137,10 +137,10 @@ local ToggleBuy = TabRoll:Toggle({
     end,
 })
 
--- ลูป Auto Roll (ยืนกดสุ่มนิ่งๆ ที่ตู้ โดยจะทำงานก็ต่อเมื่อไม่ได้อยู่ในสถานะซื้อ)
+-- ลูป Auto Roll (จะทำงานก็ต่อเมื่อเปิด Auto Roll และ "ไม่มี" ตัวละครเป้าหมายปรากฏอยู่บนพื้นเลย)
 task.spawn(function()
     while true do
-        if _G.AutoRoll and not _G.IsBuying then
+        if _G.AutoRoll then
             local myPlot = nil
             for _, plot in ipairs(Plost:GetChildren()) do
                 local plotOwner = plot:GetAttribute("Owner")
@@ -150,7 +150,27 @@ task.spawn(function()
                 end
             end
             
+            local targetExists = false
             if myPlot then
+                -- เช็คว่าตอนนี้มีตัวละครเป้าหมายอยู่บนบอร์ดไหม ถ้ามี ให้ Auto Roll หยุดทำงานทันที
+                local charactersFolder = myPlot:FindFirstChild("Characters")
+                if charactersFolder then
+                    for _, char in ipairs(charactersFolder:GetChildren()) do
+                        local success, rarityText = pcall(function()
+                            return char.Head.BuyUI.Frame.Chance.TextLabel.Text
+                        end)
+                        if success and rarityText then
+                            if selectedRarity == "All" or rarityText:lower() == selectedRarity:lower() then
+                                targetExists = true
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+            
+            -- ถ้าไม่มีตัวเป้าหมายปรากฏ และไม่ได้กำลังซื้อ ถึงจะยอมให้วาปไปกดสุ่มที่ตู้
+            if not targetExists and not _G.IsBuying and myPlot then
                 local rollModel = myPlot:FindFirstChild("Roll")
                 local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 
@@ -161,7 +181,6 @@ task.spawn(function()
                     if targetPart and hrp then
                         local targetPos = targetPart.Position + Vector3.new(0, 3, 0)
                         
-                        -- ล็อควาปมายืนที่ตู้แค่นิ่งๆ ถ้าไม่ออกนอกระยะจะไม่ดึงซ้ำซ้อนให้กระดุกกระดิ๊ก
                         if (hrp.Position - targetPos).Magnitude > 4 then
                             hrp.CFrame = CFrame.new(targetPos)
                             task.wait(0.2)
@@ -176,11 +195,11 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.4)
+        task.wait(0.3)
     end
 end)
 
--- ลูป Auto Buy (เจอตัวเป้าหมายแล้ว ล็อกนิ่ง โฟกัสซื้อตัวนั้นจนกว่าจะสำเร็จ)
+-- ลูป Auto Buy (ถ้าเจอตัวเป้าหมาย ล็อกยาวๆ โฟกัสซื้อให้จบจนกว่าตัวละครจะหายไปจากช่อง)
 task.spawn(function()
     while true do
         if _G.AutoBuy then
@@ -217,17 +236,16 @@ task.spawn(function()
                 local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 
                 if targetRarityMatch and targetChar and hrp then
-                    _G.IsBuying = true -- สั่งหยุด Auto Roll ทันทีแบบเด็ดขาด
+                    _G.IsBuying = true -- ล็อกสถานะห้าม Auto Roll ยุ่งเกี่ยวเด็ดขาด
                     local buyPart = targetChar:FindFirstChild("Head") or targetChar:FindFirstChildWhichIsA("BasePart")
                     
                     if buyPart then
-                        -- วาปไปหาตัวละครเป้าหมาย
                         hrp.CFrame = buyPart.CFrame + Vector3.new(0, 3, 0)
-                        task.wait(0.5) -- รอให้นิ่ง
+                        task.wait(0.4)
                         
                         local prompt = targetChar:FindFirstChild("ProximityPrompt", true) or targetChar:FindFirstChildWhichIsA("ProximityPrompt", true)
                         if prompt then
-                            -- วนลูปกดซื้อซ้ำๆ จนกว่าหน้าต่างซื้อ (BuyUI) จะหายไปหรือตัวละครถูกซื้อสำเร็จ
+                            -- วนลูปกดซื้อย้ำๆ และแช่อยู่ที่ตัวนี้จนกว่าตัวละครจะหายไปจากบอร์ด (ซื้อสำเร็จหรือถูกลบ)
                             repeat
                                 pcall(function()
                                     fireproximityprompt(prompt)
@@ -237,8 +255,8 @@ task.spawn(function()
                         end
                     end
                     
-                    task.wait(0.3)
-                    _G.IsBuying = false -- ซื้อเสร็จแล้วค่อยปลดล็อกให้ Auto Roll กลับไปสุ่มต่อ
+                    task.wait(0.4)
+                    _G.IsBuying = false -- เมื่อตัวละครนั้นหายไปแล้วจริงๆ ค่อยปลดล็อกให้ Auto Roll กลับไปทำงานต่อ
                 end
             end
         end
