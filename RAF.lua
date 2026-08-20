@@ -115,17 +115,6 @@ local ToggleRoll = TabRoll:Toggle({
     end,
 })
 
-local ToggleRoll = TabRoll:Toggle({
-    Title = "Auto Roll",
-    Desc = "Stays at the machine and rolls smoothly",
-    Icon = "dice-5",
-    Type = "Checkbox",
-    Value = false,
-    Callback = function(state) 
-        _G.AutoRoll = state
-    end,
-})
-
 local ToggleBuy = TabRoll:Toggle({
     Title = "Auto Buy Target",
     Desc = "Focuses on buying target rarity and pauses rolling",
