@@ -109,16 +109,12 @@ task.spawn(function()
         if _G.AutoRoll then
             local myPlot = nil
             
-            -- วนหา Plot ที่ Owner เป็น String หรือมีค่าตรงกับชื่อตัวละครของคุณจริงๆ
+            -- วนหา Plot ที่มี Attribute ชื่อ Owner ตรงกับชื่อของคุณ
             for _, plot in ipairs(Plost:GetChildren()) do
-                local owner = plot:FindFirstChild("Owner")
-                if owner then
-                    -- เช็คทั้งแบบ .Value และ .Text (เผื่อเป็น TextLabel/StringValue)
-                    local ownerVal = tostring(owner.Value or owner.Text or "")
-                    if ownerVal == LocalPlayer.Name or ownerVal:find(LocalPlayer.Name) then
-                        myPlot = plot
-                        break
-                    end
+                local plotOwner = plot:GetAttribute("Owner")
+                if plotOwner and tostring(plotOwner) == LocalPlayer.Name then
+                    myPlot = plot
+                    break
                 end
             end
             
