@@ -11,7 +11,7 @@ local stopWave = 70
 
 local Window = WindUI:CreateWindow({
     Title = "Ghost Hub",
-    Icon = "door-open",
+    Icon = "ghost",
     Author = "by .TiM",
     Folder = "MyGhostHub",
     Size = UDim2.fromOffset(580, 460),
@@ -81,6 +81,44 @@ task.spawn(function()
                     RemoteEvent:FireServer("Start")
                     task.wait(2)
                 elseif startButtonText.Text == "STOP" then
+                end
+            end
+        end
+        task.wait(1)
+    end
+end)
+
+local TabRoll = Window:Tab({
+    Title = "Roll & Buy",
+    Locked = false,
+})
+
+local ToggleRoll = TabRoll:Toggle({
+    Title = "Auto Roll",
+    Desc = "Toggle Description",
+    Icon = "dice-5",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(state) 
+        _G.AutoRoll = state
+    end,
+})
+
+task.spawn(function()
+    while true do
+        if _G.AutoRoll then
+            local targetPlot = Plost:FindFirstChild("Plot4")
+            if targetPlot and targetPlot:FindFirstChild("Roll") and targetPlot.Roll:FindFirstChild("RollButton") then
+                local rollButtonPart = targetPlot.Roll.RollButton:FindFirstChild("Button")
+                local prompt = targetPlot.Roll.RollButton:FindFirstChild("RollPrompt", true)
+                
+                if rollButtonPart and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(-103.975288, 18.214918, -236.543503)
+                    task.wait(0.5)
+                    
+                    if prompt then
+                        fireproximityprompt(prompt)
+                    end
                 end
             end
         end
