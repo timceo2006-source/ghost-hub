@@ -104,9 +104,20 @@ local Dropdown = TabRoll:Dropdown({
     end,
 })
 
+local ToggleRoll = TabRoll:Toggle({
+    Title = "Auto Roll",
+    Desc = "Rolls at machine",
+    Icon = "dice-5",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(state) 
+        _G.AutoRoll = state
+    end,
+})
+
 local ToggleBuy = TabRoll:Toggle({
     Title = "Auto Buy Target",
-    Desc = "Focuses on buying target rarity and pauses rolling",
+    Desc = "On = Stops rolling and buys target. Off = Stops rolling if target appears, but does not buy.",
     Icon = "shopping-cart",
     Type = "Checkbox",
     Value = false,
@@ -115,10 +126,77 @@ local ToggleBuy = TabRoll:Toggle({
     end,
 })
 
--- ลูป Auto Roll (จะทำงานก็ต่อเมื่อเปิด Auto Roll และ "ไม่มี" ตัวละครเป้าหมายปรากฏอยู่บนพื้นเลย)
+-- ลูปเช็คตัวละครเป้าหมาย (ใช้ร่วมกันทั้ง 2 ปุ่ม)
 task.spawn(function()
     while true do
-        if _G.AutoRoll then
+        local myPlot = nil
+        for _, plot in ipairs(Plost:GetChildren()) do
+            local plotOwner = plot:GetAttribute("Owner")
+            if plotOwner and type(plotOwner) == "string" and plotOwner:gsub("%s+", "") == LocalPlayer.Name:gsub("%s+", "") then
+                myPlot = plot
+                break
+            end
+        end
+        
+        local targetChar = nil
+        local targetExists = false
+        
+        if myPlot then
+            local charactersFolder = myPlot:FindFirstChild("Characters")
+            if charactersFolder then
+                for _, char in ipairs(charactersFolder:GetChildren()) do
+                    local success, rarityText = pcall(function()
+                        return char.Head.BuyUI.Frame.Chance.TextLabel.Text
+                    end)
+                    if success and rarityText then
+                        if selectedRarity == "All" or rarityText:lower() == selectedRarity:lower() then
+                            targetChar = char
+                            targetExists = true
+                            break
+                        end
+                    end
+                end
+            end
+        end
+        
+        -- ถ้าเปิด Auto Buy และเจอเป้าหมาย: สั่งหยุดสุ่ม และพุ่งไปซื้อให้เสร็จ
+        if _G.AutoBuy and targetExists and targetChar then
+            _G.IsBuying = true -- ล็อกไม่ให้ Auto Roll ทำงาน
+            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            local buyPart = targetChar:FindFirstChild("Head") or targetChar:FindFirstChildWhichIsA("BasePart")
+            
+            if buyPart and hrp then
+                hrp.CFrame = buyPart.CFrame + Vector3.new(0, 3, 0)
+                task.wait(0.4)
+                
+                local prompt = targetChar:FindFirstChild("ProximityPrompt", true) or targetChar:FindFirstChildWhichIsA("ProximityPrompt", true)
+                if prompt then
+                    repeat
+                        pcall(function()
+                            fireproximityprompt(prompt)
+                        end)
+                        task.wait(0.4)
+                    until not targetChar.Parent or not targetChar:FindFirstChild("Head") or not targetChar.Head:FindFirstChild("BuyUI") or not targetChar.Head.BuyUI.Enabled
+                end
+            end
+            task.wait(0.4)
+            _G.IsBuying = false
+            
+        -- ถ้าปิด Auto Buy แต่เจอเป้าหมาย: แค่ล็อกสถานะไม่ให้ Auto Roll สุ่มต่อ (หยุดนิ่งตามเงื่อนไข)
+        elseif not _G.AutoBuy and targetExists then
+            _G.IsBuying = true
+        else
+            _G.IsBuying = false
+        end
+        
+        task.wait(0.3)
+    end
+end)
+
+-- ลูป Auto Roll (ทำหน้าที่กดสุ่มที่ตู้สุ่มอย่างเดียว จะทำงานก็ต่อเมื่อเปิด Auto Roll และไม่มีการล็อกสถานะ _G.IsBuying)
+task.spawn(function()
+    while true do
+        if _G.AutoRoll and not _G.IsBuying then
             local myPlot = nil
             for _, plot in ipairs(Plost:GetChildren()) do
                 local plotOwner = plot:GetAttribute("Owner")
@@ -128,27 +206,7 @@ task.spawn(function()
                 end
             end
             
-            local targetExists = false
             if myPlot then
-                -- เช็คว่าตอนนี้มีตัวละครเป้าหมายอยู่บนบอร์ดไหม ถ้ามี ให้ Auto Roll หยุดทำงานทันที
-                local charactersFolder = myPlot:FindFirstChild("Characters")
-                if charactersFolder then
-                    for _, char in ipairs(charactersFolder:GetChildren()) do
-                        local success, rarityText = pcall(function()
-                            return char.Head.BuyUI.Frame.Chance.TextLabel.Text
-                        end)
-                        if success and rarityText then
-                            if selectedRarity == "All" or rarityText:lower() == selectedRarity:lower() then
-                                targetExists = true
-                                break
-                            end
-                        end
-                    end
-                end
-            end
-            
-            -- ถ้าไม่มีตัวเป้าหมายปรากฏ และไม่ได้กำลังซื้อ ถึงจะยอมให้วาปไปกดสุ่มที่ตู้
-            if not targetExists and not _G.IsBuying and myPlot then
                 local rollModel = myPlot:FindFirstChild("Roll")
                 local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 
@@ -173,71 +231,6 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.3)
-    end
-end)
-
--- ลูป Auto Buy (ถ้าเจอตัวเป้าหมาย ล็อกยาวๆ โฟกัสซื้อให้จบจนกว่าตัวละครจะหายไปจากช่อง)
-task.spawn(function()
-    while true do
-        if _G.AutoBuy then
-            local myPlot = nil
-            for _, plot in ipairs(Plost:GetChildren()) do
-                local plotOwner = plot:GetAttribute("Owner")
-                if plotOwner and type(plotOwner) == "string" and plotOwner:gsub("%s+", "") == LocalPlayer.Name:gsub("%s+", "") then
-                    myPlot = plot
-                    break
-                end
-            end
-            
-            if myPlot then
-                local charactersFolder = myPlot:FindFirstChild("Characters")
-                local targetChar = nil
-                local targetRarityMatch = false
-                
-                if charactersFolder then
-                    for _, char in ipairs(charactersFolder:GetChildren()) do
-                        local success, rarityText = pcall(function()
-                            return char.Head.BuyUI.Frame.Chance.TextLabel.Text
-                        end)
-                        
-                        if success and rarityText then
-                            if selectedRarity == "All" or rarityText:lower() == selectedRarity:lower() then
-                                targetChar = char
-                                targetRarityMatch = true
-                                break
-                            end
-                        end
-                    end
-                end
-                
-                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                
-                if targetRarityMatch and targetChar and hrp then
-                    _G.IsBuying = true -- ล็อกสถานะห้าม Auto Roll ยุ่งเกี่ยวเด็ดขาด
-                    local buyPart = targetChar:FindFirstChild("Head") or targetChar:FindFirstChildWhichIsA("BasePart")
-                    
-                    if buyPart then
-                        hrp.CFrame = buyPart.CFrame + Vector3.new(0, 3, 0)
-                        task.wait(0.4)
-                        
-                        local prompt = targetChar:FindFirstChild("ProximityPrompt", true) or targetChar:FindFirstChildWhichIsA("ProximityPrompt", true)
-                        if prompt then
-                            -- วนลูปกดซื้อย้ำๆ และแช่อยู่ที่ตัวนี้จนกว่าตัวละครจะหายไปจากบอร์ด (ซื้อสำเร็จหรือถูกลบ)
-                            repeat
-                                pcall(function()
-                                    fireproximityprompt(prompt)
-                                end)
-                                task.wait(0.4)
-                            until not targetChar.Parent or not targetChar:FindFirstChild("Head") or not targetChar.Head:FindFirstChild("BuyUI") or not targetChar.Head.BuyUI.Enabled
-                        end
-                    end
-                    
-                    task.wait(0.4)
-                    _G.IsBuying = false -- เมื่อตัวละครนั้นหายไปแล้วจริงๆ ค่อยปลดล็อกให้ Auto Roll กลับไปทำงานต่อ
-                end
-            end
-        end
-        task.wait(0.5)
+        task.wait(0.4)
     end
 end)
