@@ -94,29 +94,19 @@ local TabRoll = Window:Tab({
     Locked = false,
 })
 
+-- เปลี่ยนค่าเริ่มต้นเป็น Table เปล่าเพื่อรองรับการเลือกหลายอัน
 local selectedRarities = {}
 
 local Dropdown = TabRoll:Dropdown({
     Title = "Select Target Rarities",
     Desc = "Select multiple rarities to buy/stop",
     Values = {"Common", "Rare", "Epic", "Legendary", "Mythic", "Secret"},
-    Value = {},
-    MultiSelect = true,
+    Value = {}, -- ค่าเริ่มต้นเป็นค่าว่าง
+    MultiSelect = true, -- เปิดใช้งานเลือกหลายอัน
     Callback = function(values)
         selectedRarities = values
     end,
 })
-
-local function isRaritySelected(rarityText)
-    if not rarityText then return false end
-    for _, selected in pairs(selectedRarities) do
-        if type(selected) == "string" and selected:lower() == rarityText:lower() then
-            return true
-        end
-    end
-    return false
-end
-
 
 local ToggleRoll = TabRoll:Toggle({
     Title = "Auto Roll",
@@ -140,7 +130,18 @@ local ToggleBuy = TabRoll:Toggle({
     end,
 })
 
--- ลูปเช็คตัวละครเป้าหมาย (ใช้ร่วมกันทั้ง 2 ปุ่ม)
+-- ฟังก์ชันเสริมสำหรับเช็คว่าเรตติ้งนี้ถูกเลือกไว้ใน Dropdown หรือยัง
+local function isRaritySelected(rarityText)
+    if not rarityText then return false end
+    for _, selected in pairs(selectedRarities) do
+        if type(selected) == "string" and selected:lower() == rarityText:lower() then
+            return true
+        end
+    end
+    return false
+end
+
+-- ลูปเช็คตัวละครเป้าหมาย (รองรับ Multi-select)
 task.spawn(function()
     while true do
         local myPlot = nil
@@ -163,7 +164,8 @@ task.spawn(function()
                         return char.Head.BuyUI.Frame.Chance.TextLabel.Text
                     end)
                     if success and rarityText then
-                        if selectedRarity == "All" or rarityText:lower() == selectedRarity:lower() then
+                        -- เช็คเทียบกับรายการที่เลือกไว้หลายอัน
+                        if isRaritySelected(rarityText) then
                             targetChar = char
                             targetExists = true
                             break
@@ -173,9 +175,9 @@ task.spawn(function()
             end
         end
         
-        -- ถ้าเปิด Auto Buy และเจอเป้าหมาย: สั่งหยุดสุ่ม และพุ่งไปซื้อให้เสร็จ
+        -- ถ้าเปิด Auto Buy และเจอเป้าหมายที่เลือกไว้: สั่งหยุดสุ่ม และพุ่งไปซื้อให้เสร็จ
         if _G.AutoBuy and targetExists and targetChar then
-            _G.IsBuying = true -- ล็อกไม่ให้ Auto Roll ทำงาน
+            _G.IsBuying = true 
             local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
             local buyPart = targetChar:FindFirstChild("Head") or targetChar:FindFirstChildWhichIsA("BasePart")
             
@@ -196,7 +198,7 @@ task.spawn(function()
             task.wait(0.4)
             _G.IsBuying = false
             
-        -- ถ้าปิด Auto Buy แต่เจอเป้าหมาย: แค่ล็อกสถานะไม่ให้ Auto Roll สุ่มต่อ (หยุดนิ่งตามเงื่อนไข)
+        -- ถ้าปิด Auto Buy แต่เจอเป้าหมายที่เลือกไว้: แค่ล็อกสถานะไม่ให้ Auto Roll สุ่มต่อ
         elseif not _G.AutoBuy and targetExists then
             _G.IsBuying = true
         else
@@ -207,7 +209,7 @@ task.spawn(function()
     end
 end)
 
--- ลูป Auto Roll (ทำหน้าที่กดสุ่มที่ตู้สุ่มอย่างเดียว จะทำงานก็ต่อเมื่อเปิด Auto Roll และไม่มีการล็อกสถานะ _G.IsBuying)
+-- ลูป Auto Roll (ทำหน้าที่กดสุ่มที่ตู้สุ่มอย่างเดียว)
 task.spawn(function()
     while true do
         if _G.AutoRoll and not _G.IsBuying then
