@@ -106,7 +106,7 @@ local Dropdown = TabRoll:Dropdown({
 
 local ToggleRoll = TabRoll:Toggle({
     Title = "Auto Roll",
-    Desc = "Rolls at machine, stops rolling when target rarity appears",
+    Desc = "Rolls at machine only (Does not chase characters)",
     Icon = "dice-5",
     Type = "Checkbox",
     Value = false,
@@ -117,7 +117,7 @@ local ToggleRoll = TabRoll:Toggle({
 
 local ToggleBuy = TabRoll:Toggle({
     Title = "Auto Buy Target",
-    Desc = "Focuses on walking to and buying the target rarity",
+    Desc = "Focuses on finding, walking to, and buying the target rarity",
     Icon = "shopping-cart",
     Type = "Checkbox",
     Value = false,
@@ -126,10 +126,11 @@ local ToggleBuy = TabRoll:Toggle({
     end,
 })
 
--- ลูป Auto Roll (สุ่ม และหยุดทันทีเมื่อเจอตัวละครเป้าหมายปรากฏขึ้น)
+-- ลูป Auto Roll (ทำหน้าที่กดตู้สุ่มอย่างเดียว ไม่สนใจตัวละคร)
 task.spawn(function()
     while true do
-        if _G.AutoRoll then
+        -- ถ้าเปิดออโต้สุ่ม และไม่ได้อยู่ในสถานะกำลังซื้อ (เผื่อให้ Auto Buy ล็อกจังหวะไว้ได้)
+        if _G.AutoRoll and not _G.IsBuying then
             local myPlot = nil
             for _, plot in ipairs(Plost:GetChildren()) do
                 local plotOwner = plot:GetAttribute("Owner")
@@ -140,44 +141,24 @@ task.spawn(function()
             end
             
             if myPlot then
-                -- เช็คก่อนว่ามีตัวละครเป้าหมายโผล่มาหรือยัง ถ้ามี ให้หยุดสุ่มชั่วคราวก่อน
-                local charactersFolder = myPlot:FindFirstChild("Characters")
-                local foundTarget = false
-                if charactersFolder then
-                    for _, char in ipairs(charactersFolder:GetChildren()) do
-                        local success, rarityText = pcall(function()
-                            return char.Head.BuyUI.Frame.Chance.TextLabel.Text
-                        end)
-                        if success and rarityText then
-                            if selectedRarity == "All" or rarityText:lower() == selectedRarity:lower() then
-                                foundTarget = true
-                                break
-                            end
-                        end
-                    end
-                end
+                local rollModel = myPlot:FindFirstChild("Roll")
+                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 
-                -- ถ้ายังไม่เจอเป้าหมาย ค่อยทำการวาปไปกดสุ่ม
-                if not foundTarget and not _G.IsBuying then
-                    local rollModel = myPlot:FindFirstChild("Roll")
-                    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if rollModel then
+                    local prompt = rollModel:FindFirstChild("RollPrompt", true)
+                    local targetPart = rollModel:FindFirstChild("RollButton") and rollModel.RollButton:FindFirstChild("Button") or rollModel.PrimaryPart or rollModel:FindFirstChildWhichIsA("BasePart")
                     
-                    if rollModel then
-                        local prompt = rollModel:FindFirstChild("RollPrompt", true)
-                        local targetPart = rollModel:FindFirstChild("RollButton") and rollModel.RollButton:FindFirstChild("Button") or rollModel.PrimaryPart or rollModel:FindFirstChildWhichIsA("BasePart")
+                    if targetPart and hrp then
+                        local targetPos = targetPart.Position + Vector3.new(0, 3, 0)
+                        if (hrp.Position - targetPos).Magnitude > 10 then
+                            hrp.CFrame = CFrame.new(targetPos)
+                            task.wait(0.5)
+                        end
                         
-                        if targetPart and hrp then
-                            local targetPos = targetPart.Position + Vector3.new(0, 3, 0)
-                            if (hrp.Position - targetPos).Magnitude > 10 then
-                                hrp.CFrame = CFrame.new(targetPos)
-                                task.wait(0.5)
-                            end
-                            
-                            if prompt then
-                                pcall(function()
-                                    fireproximityprompt(prompt)
-                                end)
-                            end
+                        if prompt then
+                            pcall(function()
+                                fireproximityprompt(prompt)
+                            end)
                         end
                     end
                 end
@@ -187,7 +168,7 @@ task.spawn(function()
     end
 end)
 
--- ลูป Auto Buy (โฟกัสเฉพาะตัวละครเป้าหมาย ล็อกไม่ให้ไปสุ่ม และจัดการซื้อจนจบ)
+-- ลูป Auto Buy (หน้าที่เช็คตัวละคร, สั่งหยุดสุ่ม, และโฟกัสซื้อจนจบ)
 task.spawn(function()
     while true do
         if _G.AutoBuy then
@@ -224,13 +205,13 @@ task.spawn(function()
                 local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 
                 if targetRarityMatch and targetChar and hrp then
-                    _G.IsBuying = true -- ล็อกสถานะสั่งห้ามตัวสุ่มทำงานเด็ดขาด
+                    _G.IsBuying = true -- สั่งห้ามไม่ให้ Auto Roll ทำงานแทรก (หยุดสุ่มทันที)
                     local buyPart = targetChar:FindFirstChild("Head") or targetChar:FindFirstChildWhichIsA("BasePart")
                     
                     if buyPart then
-                        -- วาปไปจอดรอเหนือตัวละครและหน่วงเวลาให้ตัวละครนิ่งสนิทก่อนกด
+                        -- วาปไปโฟกัสที่ตัวละครเป้าหมาย
                         hrp.CFrame = buyPart.CFrame + Vector3.new(0, 3, 0)
-                        task.wait(0.6) 
+                        task.wait(0.6) -- รอให้ตัวละครนิ่งสนิท
                         
                         local prompt = targetChar:FindFirstChild("ProximityPrompt", true) or targetChar:FindFirstChildWhichIsA("ProximityPrompt", true)
                         if prompt then
@@ -248,7 +229,7 @@ task.spawn(function()
                             end
                         end
                     end
-                    _G.IsBuying = false -- ปลดล็อกสถานะเมื่อจัดการซื้อเสร็จสิ้น
+                    _G.IsBuying = false -- ปลดล็อกให้ Auto Roll กลับไปทำงานต่อได้เมื่อซื้อเสร็จ
                 end
             end
         end
