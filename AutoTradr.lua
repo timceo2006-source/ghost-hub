@@ -13,10 +13,13 @@ local playerGui = player:WaitForChild("PlayerGui")
 
 local function resetTradeUI()
     pcall(function()
-        for _, gui in ipairs(playerGui:GetDescendants()) do
-            if gui.Name == "Are You Sure" and gui:IsA("GuiObject") then
-                gui.Enabled = false
+        local tabs = playerGui:FindFirstChild("Tabs")
+        if tabs then
+            local areYouSure = tabs:FindFirstChild("Are You Sure")
+            if areYouSure then
+                areYouSure.Enabled = false
             end
+            tabs.Enabled = false
         end
         GuiService.SelectedObject = nil
     end)
@@ -28,34 +31,29 @@ local function autoAcceptTradeLoop()
     local targetText = ""
 
     pcall(function()
-        -- ค้นหาหน้าต่าง "Are You Sure" จากทุกที่ใน PlayerGui ป้องกันหาไม่เจอ
-        for _, gui in ipairs(playerGui:GetDescendants()) do
-            if gui.Name == "Are You Sure" and (gui:IsA("ScreenGui") or gui:IsA("Frame")) and gui.Visible then
-                areYouSureGui = gui
-                break
-            end
-        end
-
-        if areYouSureGui then
-            -- ค้นหาปุ่ม Yes และ TextLabel ด้านในแบบยืดหยุ่น
-            for _, descendant in ipairs(areYouSureGui:GetDescendants()) do
-                if descendant.Name == "Yes" and (descendant:IsA("TextButton") or descendant:IsA("ImageButton")) then
-                    confirmButton = descendant
-                elseif descendant:IsA("TextLabel") and string.find(descendant.Text, "Do you want to give") then
-                    targetText = descendant.Text
-                end
-            end
+        areYouSureGui = playerGui:FindFirstChild("Tabs") and playerGui.Tabs:FindFirstChild("Are You Sure")
+        if areYouSureGui and areYouSureGui.Enabled then
+            confirmButton = areYouSureGui.Menu.Frame.Buttons.Yes
+            targetText = areYouSureGui.Menu.Frame.TextLabel.Text
         end
     end)
 
-    if areYouSureGui and confirmButton then
-        print("Detected Trade UI. Text:", targetText)
-
-        -- เช็คชื่อผู้ส่ง
+    if areYouSureGui and areYouSureGui.Enabled and confirmButton and confirmButton.Parent then
         local isValidSender = (Config.TargetSender == "" or string.find(targetText, Config.TargetSender))
+        
+        local isValidItem = true
+        if Config.AllowedItems and next(Config.AllowedItems) ~= nil then
+            isValidItem = false
+            for itemName, _ in pairs(Config.AllowedItems) do
+                if string.find(targetText, itemName) then
+                    isValidItem = true
+                    break
+                end
+            end
+        end
 
-        if isValidSender then
-            while areYouSureGui and areYouSureGui.Parent do
+        if isValidSender and isValidItem then
+            while areYouSureGui.Parent and areYouSureGui.Enabled do
                 pcall(function()
                     if confirmButton and confirmButton.Parent then
                         GuiService.SelectedObject = confirmButton
@@ -67,28 +65,34 @@ local function autoAcceptTradeLoop()
                         for _, conn in ipairs(getconnections(confirmButton.Activated)) do
                             conn:Fire()
                         end
-                        for _, conn in ipairs(getconnections(confirmButton.MouseButton1Click)) do
-                            conn:Fire()
-                        end
                     end
                 end)
-                task.wait(0.05)
+                task.wait(0.08)
             end
 
             task.wait(0.1)
             resetTradeUI()
+            task.wait(0.2)
         else
-            -- ถ้าไม่ใช่คนส่งที่กำหนด ให้กดปุ่ม No ปฏิเสธไป
             pcall(function()
-                for _, descendant in ipairs(areYouSureGui:GetDescendants()) do
-                    if descendant.Name == "No" and (descendant:IsA("TextButton") or descendant:IsA("ImageButton")) then
-                        GuiService.SelectedObject = descendant
-                        for _, conn in ipairs(getconnections(descendant.Activated)) do
-                            conn:Fire()
-                        end
+                local denyButton = areYouSureGui.Menu.Frame.Buttons.No
+                if denyButton then
+                    GuiService.SelectedObject = denyButton
+                    for _, conn in ipairs(getconnections(denyButton.Activated)) do
+                        conn:Fire()
                     end
                 end
             end)
+            task.wait(0.5)
+            resetTradeUI()
+        end
+    end
+end
+
+while true do
+    autoAcceptTradeLoop()
+    task.wait(0.05)
+end
             task.wait(0.5)
             resetTradeUI()
         end
