@@ -19,7 +19,6 @@ local function resetTradeUI()
             if areYouSure then
                 areYouSure.Enabled = false
             end
-            tabs.Enabled = false
         end
         GuiService.SelectedObject = nil
     end)
@@ -62,8 +61,10 @@ local function autoAcceptTradeLoop()
                         task.wait(0.02)
                         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
                         
-                        for _, conn in ipairs(getconnections(confirmButton.Activated)) do
-                            conn:Fire()
+                        if getconnections then
+                            for _, conn in ipairs(getconnections(confirmButton.Activated)) do
+                                conn:Fire()
+                            end
                         end
                     end
                 end)
@@ -78,8 +79,10 @@ local function autoAcceptTradeLoop()
                 local denyButton = areYouSureGui.Menu.Frame.Buttons.No
                 if denyButton then
                     GuiService.SelectedObject = denyButton
-                    for _, conn in ipairs(getconnections(denyButton.Activated)) do
-                        conn:Fire()
+                    if getconnections then
+                        for _, conn in ipairs(getconnections(denyButton.Activated)) do
+                            conn:Fire()
+                        end
                     end
                 end
             end)
@@ -89,6 +92,10 @@ local function autoAcceptTradeLoop()
     end
 end
 
+while true do
+    autoAcceptTradeLoop()
+    task.wait(0.05)
+end
 while true do
     autoAcceptTradeLoop()
     task.wait(0.05)
