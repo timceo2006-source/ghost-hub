@@ -141,17 +141,3 @@ while true do
     autoSendTradeLoop()
     task.wait(0.1)
 end
-                    end
-                end
-            end)
-            task.wait(0.5)
-            resetTradeUI()
-        end
-    end
-end
-
--- ลูปการทำงานหลัก (มีอันเดียวจบ ไม่ซ้ำซ้อน)
-while true do
-    autoAcceptTradeLoop()
-    task.wait(0.05)
-end
