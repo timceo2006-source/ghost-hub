@@ -1,5 +1,5 @@
 local Config = getgenv().AcceptTradeConfig or {
-    TargetSender = "BrookSP001", -- ค่าเริ่มต้นถ้าไม่ได้ตั้งค่า
+    TargetSender = "BrookSP001",
     AllowedItems = {
         ["Rainbow Comet Gnome"] = true,
     }
@@ -7,6 +7,7 @@ local Config = getgenv().AcceptTradeConfig or {
 
 local Players = game:GetService("Players")
 local GuiService = game:GetService("GuiService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
@@ -26,17 +27,21 @@ end
 local function autoAcceptTradeLoop()
     local areYouSureGui = nil
     local confirmButton = nil
-    local targetText = nil
+    local targetText = ""
 
     pcall(function()
         areYouSureGui = playerGui:FindFirstChild("Tabs") and playerGui.Tabs:FindFirstChild("Are You Sure")
         if areYouSureGui and areYouSureGui.Enabled then
+            confirmButton = areYouSureGui.Menu.Fame and areYouSureGui.Menu.Frame.Buttons.Yes -- หรือตามโครงสร้างเดิม
             confirmButton = areYouSureGui.Menu.Frame.Buttons.Yes
             targetText = areYouSureGui.Menu.Frame.TextLabel.Text
         end
     end)
 
     if areYouSureGui and areYouSureGui.Enabled and confirmButton and confirmButton.Parent then
+        -- ปริ้นท์ข้อความในหน้าต่างขึ้นมาดูใน Console เพื่อเช็คความถูกต้อง
+        print("Trade UI Text detected:", targetText)
+
         local isValidSender = (Config.TargetSender == "" or string.find(targetText, Config.TargetSender))
         
         local isValidItem = true
@@ -55,6 +60,12 @@ local function autoAcceptTradeLoop()
                 pcall(function()
                     if confirmButton and confirmButton.Parent then
                         GuiService.SelectedObject = confirmButton
+                        
+                        -- เพิ่มการจำลองกดปุ่ม Enter ร่วมด้วยแบบฝั่งตัวส่ง
+                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                        task.wait(0.02)
+                        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+                        
                         for _, conn in ipairs(getconnections(confirmButton.Activated)) do
                             conn:Fire()
                         end
@@ -89,4 +100,5 @@ end
 while true do
     autoAcceptTradeLoop()
     task.wait(0.05)
+end
 end
