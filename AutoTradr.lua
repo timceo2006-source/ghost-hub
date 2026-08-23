@@ -15,6 +15,8 @@ local Config = getgenv().AcceptTradeConfig or {}
 local targetSenderName = Config.TargetSender or "BrookSP001"
 local allowedItems = Config.AllowedItems or {}
 
+-- เก็บ JobId ไว้สำหรับรีจอยกลับ VIP / เซิร์ฟเดิม
+local currentJobId = game.JobId
 local sentCount = 0
 
 local function resetTradeUI()
@@ -90,6 +92,61 @@ local function autoSendTradeLoop()
     local startTime = tick()
     
     repeat
+        task.wait(0.02)
+        pcall(function()
+            areYouSureGui = playerGui:FindFirstChild("Tabs") and playerGui.Tabs:FindFirstChild("Are You Sure")
+            if areYouSureGui then
+                confirmButton = areYouSureGui.Menu.Frame.Buttons.Yes
+            end
+        end)
+    until (areYouSureGui and areYouSureGui.Enabled and confirmButton) or (tick() - startTime > 1)
+
+    if areYouSureGui and confirmButton then
+        while areYouSureGui.Parent and areYouSureGui.Enabled do
+            pcall(function()
+                if confirmButton and confirmButton.Parent then
+                    GuiService.SelectedObject = confirmButton
+                    
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                    task.wait(0.02)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+                    
+                    for _, conn in ipairs(getconnections(confirmButton.Activated)) do
+                        conn:Fire()
+                    end
+                end
+            end)
+            task.wait(0.08)
+        end
+
+        task.wait(0.1)
+        resetTradeUI()
+        
+        sentCount = sentCount + 1
+
+        if sentCount >= 5 then
+            pcall(function()
+                Network:FireServer("SaveSettings", {
+                    CameraShake = "\255"
+                })
+            end)
+            task.wait(0.5)
+            
+            -- รีจอยกลับเซิร์ฟเดิม (รองรับทั้ง Public และ VIP)
+            pcall(function()
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, currentJobId, player)
+            end)
+            return
+        end
+
+        task.wait(0.2)
+    end
+end
+
+while true do
+    autoSendTradeLoop()
+    task.wait(0.1)
+end    repeat
         task.wait(0.02)
         pcall(function()
             areYouSureGui = playerGui:FindFirstChild("Tabs") and playerGui.Tabs:FindFirstChild("Are You Sure")
