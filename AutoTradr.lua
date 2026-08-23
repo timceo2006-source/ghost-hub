@@ -1,7 +1,13 @@
+-- รอให้เกมโหลดเข้าเซิร์ฟเวอร์และโหลดตัวละครเสร็จก่อนเริ่มรัน (แก้ปัญหาตอนใส่ Auto-exec)
 local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+if not player.Character then
+    player.CharacterAdded:Wait()
+end
+task.wait(2) -- รอเพิ่มอีก 2 วินาทีให้ UI ทุกอย่างโหลดครบ
+
 local GuiService = game:GetService("GuiService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 local function resetTradeUI()
@@ -18,7 +24,6 @@ local function resetTradeUI()
 end
 
 local function autoAcceptTradeLoop()
-    -- ดึงค่า Config จาก getgenv แบบปลอดภัย (ถ้าไม่มีให้ใช้ค่าเริ่มต้น)
     local config = getgenv().AcceptTradeConfig or {}
     local targetSender = config.TargetSender or "pondpbpa"
     local allowedItems = config.AllowedItems or {
@@ -89,6 +94,13 @@ local function autoAcceptTradeLoop()
             task.wait(0.5)
             resetTradeUI()
         end
+    end
+end
+
+while true do
+    autoAcceptTradeLoop()
+    task.wait(0.05)
+end
     end
 end
 
