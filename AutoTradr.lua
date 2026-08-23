@@ -39,6 +39,24 @@ local function resetTradeUI()
     end)
 end
 
+-- ฟังก์ชันรีจอยที่พยายามกลับ VIP ให้สุด
+local function forceRejoin()
+    for i = 1, 5 do
+        local success = pcall(function()
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, currentJobId, player)
+        end)
+        if success then
+            return
+        end
+        task.wait(1)
+    end
+
+    -- ถ้ายังไม่ได้ ค่อยไปเซิร์ฟสาธารณะ
+    pcall(function()
+        TeleportService:Teleport(game.PlaceId, player)
+    end)
+end
+
 local function autoSendTradeLoop()
     local targetPlayer = Players:FindFirstChild(targetSenderName)
     if not targetPlayer then return end
@@ -131,7 +149,6 @@ local function autoSendTradeLoop()
         sentCount = sentCount + 1
 
         if sentCount >= 5 then
-            -- ถ้ามี Network ค่อยยิง
             if Network then
                 pcall(function()
                     Network:FireServer("SaveSettings", {
@@ -141,10 +158,7 @@ local function autoSendTradeLoop()
             end
             task.wait(0.5)
             
-            -- รีจอยกลับเซิร์ฟเดิม (รองรับ VIP)
-            pcall(function()
-                TeleportService:TeleportToPlaceInstance(game.PlaceId, currentJobId, player)
-            end)
+            forceRejoin()
             return
         end
 
