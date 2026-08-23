@@ -5,7 +5,7 @@ local TeleportService = game:GetService("TeleportService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Library = require(ReplicatedStorage.Library)
 local Network = Library.get("Network")
 
