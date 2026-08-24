@@ -20,36 +20,33 @@ end
 
 local function autoAcceptTradeLoop()
     pcall(function()
-        local tabs = playerGui:FindFirstChild("Tabs")
-        if tabs then
-            local areYouSure = tabs:FindFirstChild("Are You Sure")
-            if areYouSure and areYouSure.Enabled then
-                local confirmButton = areYouSure.Menu.Frame.Buttons.Yes
-                if confirmButton and confirmButton.Parent then
-                    while areYouSure.Parent and areYouSure.Enabled do
-                        pcall(function()
-                            if confirmButton and confirmButton.Parent then
-                                GuiService.SelectedObject = confirmButton
-                                
-                                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
-                                task.wait(0.02)
-                                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
-                                
-                                for _, conn in ipairs(getconnections(confirmButton.Activated)) do
-                                    conn:Fire()
-                                end
-                                for _, conn in ipairs(getconnections(confirmButton.MouseButton1Click)) do
-                                    conn:Fire()
-                                end
+        local areYouSure = playerGui:FindFirstChild("Tabs") and playerGui.Tabs:FindFirstChild("Are You Sure")
+        if areYouSure and areYouSure.Enabled then
+            local confirmButton = areYouSure.Menu.Frame.Buttons.Yes
+            if confirmButton and confirmButton.Parent then
+                while areYouSure.Parent and areYouSure.Enabled do
+                    pcall(function()
+                        if confirmButton and confirmButton.Parent then
+                            GuiService.SelectedObject = confirmButton
+                            
+                            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                            task.wait(0.02)
+                            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+                            
+                            for _, conn in ipairs(getconnections(confirmButton.Activated)) do
+                                conn:Fire()
                             end
-                        end)
-                        task.wait(0.08)
-                    end
-
-                    task.wait(0.1)
-                    resetTradeUI()
-                    task.wait(0.2)
+                            for _, conn in ipairs(getconnections(confirmButton.MouseButton1Click)) do
+                                conn:Fire()
+                            end
+                        end
+                    end)
+                    task.wait(0.08)
                 end
+
+                task.wait(0.1)
+                resetTradeUI()
+                task.wait(0.2)
             end
         end
     end)
