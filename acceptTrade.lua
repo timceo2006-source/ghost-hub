@@ -19,41 +19,41 @@ local function resetTradeUI()
 end
 
 local function autoAcceptTradeLoop()
-    local areYouSureGui = nil
-    local confirmButton = nil
-
     pcall(function()
-        areYouSureGui = playerGui:FindFirstChild("Tabs") and playerGui.Tabs:FindFirstChild("Are You Sure")
-        if areYouSureGui and areYouSureGui.Enabled then
-            confirmButton = areYouSureGui.Menu.Frame.Buttons.Yes
+        local tabs = playerGui:FindFirstChild("Tabs")
+        if tabs then
+            local areYouSure = tabs:FindFirstChild("Are You Sure")
+            if areYouSure and areYouSure.Enabled then
+                local confirmButton = areYouSure.Menu.Frame.Buttons.Yes
+                if confirmButton and confirmButton.Parent then
+                    while areYouSure.Parent and areYouSure.Enabled do
+                        pcall(function()
+                            -- จำลองการกดปุ่ม / (Slash) บนคีย์บอร์ดเพื่อให้กรอบเลือกปุ่มเด้งขึ้นมา
+                            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Slash, false, game)
+                            task.wait(0.02)
+                            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Slash, false, game)
+                            
+                            -- บังคับเลือกปุ่ม Yes และจำลองการกด Enter ย้ำๆ
+                            GuiService.SelectedObject = confirmButton
+                            
+                            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                            task.wait(0.02)
+                            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+                            
+                            for _, conn in ipairs(getconnections(confirmButton.Activated)) do
+                                conn:Fire()
+                            end
+                        end)
+                        task.wait(0.08)
+                    end
+
+                    task.wait(0.1)
+                    resetTradeUI()
+                    task.wait(0.2)
+                end
+            end
         end
     end)
-
-    if areYouSureGui and areYouSureGui.Enabled and confirmButton and confirmButton.Parent then
-        while areYouSureGui.Parent and areYouSureGui.Enabled do
-            pcall(function()
-                if confirmButton and confirmButton.Parent then
-                    -- สั่งขึ้นกรอบสีฟ้าเลือกปุ่ม Yes แบบเดียวกับตัวส่ง
-                    GuiService.SelectedObject = confirmButton
-                    
-                    -- รัวยิงคำสั่งปุ่ม Enter (Return) ซ้ำๆ แบบในคอม/ตัวส่ง
-                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
-                    task.wait(0.02)
-                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
-                    
-                    -- แถมเบิ้ลคำสั่งยิงสัญญาณคลิกเผื่อไว้ด้วย
-                    for _, conn in ipairs(getconnections(confirmButton.Activated)) do
-                        conn:Fire()
-                    end
-                end
-            end)
-            task.wait(0.08)
-        end
-
-        task.wait(0.1)
-        resetTradeUI()
-        task.wait(0.2)
-    end
 end
 
 while true do
