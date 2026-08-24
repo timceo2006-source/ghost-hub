@@ -1,6 +1,7 @@
 local Players = game:GetService("Players")
 local GuiService = game:GetService("GuiService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
@@ -24,12 +25,12 @@ local function autoAcceptTradeLoop()
 
     pcall(function()
         areYouSureGui = playerGui:FindFirstChild("Tabs") and playerGui.Tabs:FindFirstChild("Are You Sure")
-        if areYouSureGui and areYouSureGui.Enabled then
+        if areYouSureGui then
             confirmButton = areYouSureGui.Menu.Frame.Buttons.Yes
         end
     end)
 
-    if areYouSureGui and areYouSureGui.Enabled and confirmButton and confirmButton.Parent then
+    if areYouSureGui and areYouSureGui.Enabled and confirmButton then
         while areYouSureGui.Parent and areYouSureGui.Enabled do
             pcall(function()
                 if confirmButton and confirmButton.Parent then
