@@ -1,67 +1,42 @@
 local Players = game:GetService("Players")
-local GuiService = game:GetService("GuiService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local function resetTradeUI()
+local function autoAcceptTradeLoop()
     pcall(function()
         local tabs = playerGui:FindFirstChild("Tabs")
         if tabs then
             local areYouSure = tabs:FindFirstChild("Are You Sure")
-            if areYouSure then
-                areYouSure.Enabled = false
-            end
-            tabs.Enabled = false
-        end
-        GuiService.SelectedObject = nil
-    end)
-end
-
-local function autoAcceptTradeLoop()
-    local areYouSureGui = nil
-    local confirmButton = nil
-    local startTime = tick()
-    
-    -- ใช้การรอจังหวะแบบเดียวกับตัวส่ง เพื่อให้จับหน้าต่างที่เด้งขึ้นมาได้ทันที
-    repeat
-        task.wait(0.02)
-        pcall(function()
-            areYouSureGui = playerGui:FindFirstChild("Tabs") and playerGui.Tabs:FindFirstChild("Are You Sure")
-            if areYouSureGui and areYouSureGui.Enabled then
-                confirmButton = areYouSureGui.Menu.Frame.Buttons.Yes
-            end
-        end)
-    until (areYouSureGui and areYouSureGui.Enabled and confirmButton) or (tick() - startTime > 0.5)
-
-    if areYouSureGui and areYouSureGui.Enabled and confirmButton then
-        while areYouSureGui.Parent and areYouSureGui.Enabled do
-            pcall(function()
-                if confirmButton and confirmButton.Parent then
-                    GuiService.SelectedObject = confirmButton
-                    
-                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
-                    task.wait(0.02)
-                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
-                    
-                    for _, conn in ipairs(getconnections(confirmButton.Activated)) do
-                        conn:Fire()
+            if areYouSure and areYouSure.Enabled then
+                local confirmButton = areYouSure.Menu.Frame.Buttons.Yes
+                if confirmButton and confirmButton.Visible then
+                    -- จำลองการคลิกตำแหน่งปุ่มผ่านเมธอดภายในของเกมโดยตรง
+                    if firesignal then
+                        firesignal(confirmButton.MouseButton1Click)
+                        firesignal(confirmButton.Activated)
+                    elseif fireclickdetector then
+                        -- กรณีสำรอง
                     end
-                    for _, conn in ipairs(getconnections(confirmButton.MouseButton1Click)) do
-                        conn:Fire()
-                    end
+                    
+                    -- อีกวิธี: ใช้การจำลองกดเมาส์ลงบนปุ่มโดยตรงแบบแม่นยำ
+                    local vim = game:GetService("VirtualInputManager")
+                    local absPos = confirmButton.AbsolutePosition
+                    local absSize = confirmButton.AbsoluteSize
+                    local clickX = absPos.X + (absSize.X / 2)
+                    local clickY = absPos.Y + (absSize.Y / 2)
+                    
+                    vim:SendMouseButtonEvent(clickX, clickY, 0, true, game, 1)
+                    task.wait(0.05)
+                    vim:SendMouseButtonEvent(clickX, clickY, 0, false, game, 1)
+                    
+                    task.wait(0.5)
                 end
-            end)
-            task.wait(0.08)
+            end
         end
-
-        task.wait(0.1)
-        resetTradeUI()
-        task.wait(0.2)
-    end
+    end)
 end
 
 while true do
     autoAcceptTradeLoop()
-    task.wait(0.05)
+    task.wait(0.1)
 end
