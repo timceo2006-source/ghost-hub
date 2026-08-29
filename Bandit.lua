@@ -5,44 +5,19 @@ local vim = game:GetService("VirtualInputManager")
 local currentTarget = nil
 local lastSkillTime = 0
 
--- สั่งกดปุ่มแบบไม่ให้ลูปหยุดชะงัก (เพิ่มความไวขั้นสุด)
-local function pressKey(key)
-    task.spawn(function()
-        vim:SendKeyEvent(true, key, false, game)
-        task.wait(0.02)
-        vim:SendKeyEvent(false, key, false, game)
-    end)
+-- ฟังก์ชันกดปุ่มอัตโนมัติจากการอ่าน abilitySlot (แปลงค่า Q, E เป็น Enum.KeyCode ให้เอง)
+local function pressKey(keyStr)
+    local success, keyCode = pcall(function() return Enum.KeyCode[keyStr:upper()] end)
+    if success and keyCode then
+        task.spawn(function()
+            vim:SendKeyEvent(true, keyCode, false, game)
+            task.wait(0.02)
+            vim:SendKeyEvent(false, keyCode, false, game)
+        end)
+    end
 end
 
--- เช็คคูลดาวน์จากทั้งในกระเป๋า (Backpack) และที่กำลังถืออยู่ (Character)
-local function getCooldown(slotName)
-    local items = {}
-    
-    local backpack = player:FindFirstChild("Backpack")
-    if backpack then
-        for _, item in ipairs(backpack:GetChildren()) do table.insert(items, item) end
-    end
-    
-    local char = player.Character
-    if char then
-        for _, item in ipairs(char:GetChildren()) do table.insert(items, item) end
-    end
-    
-    for _, item in ipairs(items) do
-        if item:IsA("Tool") then
-            local slot = item:FindFirstChild("abilitySlot")
-            if slot and slot:IsA("ValueBase") and tostring(slot.Value):lower() == slotName:lower() then
-                local cd = item:FindFirstChild("cooldown")
-                if cd and cd:IsA("ValueBase") then 
-                    return cd.Value 
-                end
-            end
-        end
-    end
-    return 99 -- ป้องกัน Error ถ้าหาไม่เจอ
-end
-
--- ฟังก์ชันหามอนสเตอร์และขยายฮิตบ็อกซ์
+-- หามอนสเตอร์และขยายฮิตบ็อกซ์
 local function getTarget()
     if currentTarget and currentTarget.Parent and currentTarget:FindFirstChild("Humanoid") and currentTarget.Humanoid.Health > 0 then
         local hrp = currentTarget:FindFirstChild("HumanoidRootPart")
@@ -61,7 +36,6 @@ local function getTarget()
                     if hum and hrp and hum.Health > 0 then
                         currentTarget = monster
                         
-                        -- ขยายฮิตบ็อกซ์มอนสเตอร์ให้ตีโดนจากบนฟ้า
                         hrp.Size = Vector3.new(25, 25, 25)
                         hrp.Transparency = 0.8 
                         hrp.CanCollide = false
@@ -75,7 +49,7 @@ local function getTarget()
     return nil
 end
 
--- ลูปที่ 1: ล็อกตำแหน่งตัวละครให้อยู่บนฟ้า
+-- ลูป 1: ลอยตัวนิ่งๆ บนฟ้า
 runService.Heartbeat:Connect(function()
     pcall(function()
         local char = player.Character
@@ -97,44 +71,47 @@ runService.Heartbeat:Connect(function()
     end)
 end)
 
--- ลูปที่ 2: จัดการเรื่องการใช้สกิลและการตีปกติ (สแปมสกิลรัวๆ)
+-- ลูป 2: ระบบ Auto Skill แบบเช็คโครงสร้างอัตโนมัติ
 task.spawn(function()
-    while task.wait(0.05) do
+    while task.wait(0.1) do
         pcall(function()
             local char = player.Character
-            -- เช็คว่าตัวละครมีชีวิตอยู่ไหม ป้องกันการรวนตอนตายเกิดใหม่
             if not char or not char:FindFirstChild("Humanoid") or char.Humanoid.Health <= 0 then return end
             
             local targetHrp = getTarget()
             if not targetHrp then return end
             
-            -- บังคับถืออาวุธ
-            local backpack = player:FindFirstChild("Backpack")
-            if backpack then
-                local tool = backpack:FindFirstChildOfClass("Tool")
-                if tool then tool.Parent = char end
-            end
-            
-            local qCd = getCooldown("q")
-            local eCd = getCooldown("e")
-            
-            -- เช็คคูลดาวน์และสาดสกิลทันทีที่หลอดคูลดาวน์หมด
-            if tick() - lastSkillTime > 0.1 then
-                if qCd <= 0.1 then
-                    pressKey(Enum.KeyCode.Q)
-                    lastSkillTime = tick()
-                    return
-                elseif eCd <= 0.1 then
-                    pressKey(Enum.KeyCode.E)
-                    lastSkillTime = tick()
-                    return
+            -- [จุดสำคัญ] ค้นหาสกิลทั้งหมดและเช็คคูลดาวน์เองแบบไดนามิก
+            if tick() - lastSkillTime > 0.15 then
+                local items = {}
+                -- รวมไอเทมจากทั้งในกระเป๋าและที่ถืออยู่
+                if player:FindFirstChild("Backpack") then
+                    for _, v in ipairs(player.Backpack:GetChildren()) do table.insert(items, v) end
+                end
+                for _, v in ipairs(char:GetChildren()) do table.insert(items, v) end
+                
+                for _, item in ipairs(items) do
+                    if item:IsA("Tool") then
+                        local slot = item:FindFirstChild("abilitySlot")
+                        local cd = item:FindFirstChild("cooldown")
+                        
+                        -- เช็คว่ามีโฟลเดอร์โครงสร้างสกิลครบไหม
+                        if slot and cd and slot:IsA("ValueBase") and cd:IsA("ValueBase") then
+                            -- ถ้าคูลดาวน์เหลือน้อยกว่า 0.1 (รวม 0 และค่าติดลบทั้งหมด)
+                            if cd.Value <= 0.1 then
+                                pressKey(tostring(slot.Value)) -- สั่งกดปุ่มตามตัวอักษรใน abilitySlot
+                                lastSkillTime = tick()
+                                return -- ออกจากลูปเพื่อรอสาดสกิลถัดไปในรอบหน้า
+                            end
+                        end
+                    end
                 end
             end
             
-            -- สั่งตีปกติ
-            local tool = char:FindFirstChildOfClass("Tool")
-            if tool then
-                tool:Activate()
+            -- โจมตีปกติ (M1) เฉพาะอาวุธที่คุณกดถืออยู่เท่านั้น จะได้ไม่รบกวนระบบเกม
+            local equippedTool = char:FindFirstChildOfClass("Tool")
+            if equippedTool then
+                equippedTool:Activate()
             end
         end)
     end
