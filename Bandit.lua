@@ -2,12 +2,22 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 local FOV_RADIUS = 150
 local PREDICTION_AMOUNT = 0.12 
 local AIM_SMOOTHNESS = 0.5 
+
+-- บันทึกค่าแสงสว่างดั้งเดิมของเกมไว้เผื่อตอนกดปิด
+local origLighting = {
+	Brightness = Lighting.Brightness,
+	ClockTime = Lighting.ClockTime,
+	FogEnd = Lighting.FogEnd,
+	GlobalShadows = Lighting.GlobalShadows,
+	Ambient = Lighting.Ambient
+}
 
 local function getCustomCharacter(player)
 	if player.Character and player.Character:FindFirstChildWhichIsA("BasePart", true) then
@@ -286,6 +296,43 @@ Tab:Button({
 					end
 				end
 			end
+		end
+	end
+})
+
+local nightVisionEnabled = false
+local lightingConnection = nil
+
+Tab:Button({
+	Title = "Night Vision",
+	Desc = "เปิด/ปิด มองกลางคืน (สว่างทั้งแมพ)",
+	Locked = false,
+	Callback = function()
+		nightVisionEnabled = not nightVisionEnabled
+		
+		if nightVisionEnabled then
+			local function applyNightVision()
+				Lighting.Brightness = 2
+				Lighting.ClockTime = 14
+				Lighting.FogEnd = 100000
+				Lighting.GlobalShadows = false
+				Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+			end
+			
+			applyNightVision()
+			lightingConnection = Lighting.Changed:Connect(applyNightVision)
+		else
+			if lightingConnection then
+				lightingConnection:Disconnect()
+				lightingConnection = nil
+			end
+			
+			-- คืนค่าเดิมของเกมเมื่อปิด
+			Lighting.Brightness = origLighting.Brightness
+			Lighting.ClockTime = origLighting.ClockTime
+			Lighting.FogEnd = origLighting.FogEnd
+			Lighting.GlobalShadows = origLighting.GlobalShadows
+			Lighting.Ambient = origLighting.Ambient
 		end
 	end
 })
