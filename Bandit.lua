@@ -8,7 +8,7 @@ local Camera = workspace.CurrentCamera
 
 local FOV_RADIUS = 150
 local PREDICTION_AMOUNT = 0.12 
-local AIM_SMOOTHNESS = 1
+local AIM_SMOOTHNESS = 1.0 -- ปรับเป็น 1.0 เพื่อให้เป้าล็อกติดแน่น สู้แรงดีดปืน
 
 local origLighting = {
 	Brightness = Lighting.Brightness,
@@ -108,6 +108,7 @@ local Tab = Window:Tab({
 	Locked = false,
 })
 
+-- ================= AIMBOT SYSTEM =================
 local aimbotHubEnabled = false
 local aimbotEnabled = false
 local aimbotLoop = nil
@@ -189,116 +190,93 @@ Tab:Button({
 	end
 })
 
+-- ================= ESP 2D SYSTEM (SECURE) =================
 local espHubEnabled = false
 local espLoop = nil
-local espFolder = nil
+local espScreen = nil
 
 Tab:Button({
 	Title = "ESP",
-	Desc = "เปิด/ปิด ESP Players",
+	Desc = "เปิด/ปิด ESP Players (ระบบ 2D ป้องกันเกมลบ)",
 	Locked = false,
 	Callback = function()
 		espHubEnabled = not espHubEnabled
 		
 		if espHubEnabled then
-			-- สร้างโฟลเดอร์ส่วนตัวใน CoreGui เพื่อไม่ให้เกมเข้าถึงหรือลบ ESP ของเราได้
-			if not espFolder then
-				espFolder = Instance.new("Folder")
-				espFolder.Name = "SecureESPFolder"
-				pcall(function() espFolder.Parent = CoreGui end)
-				if not espFolder.Parent then espFolder.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+			if not espScreen then
+				espScreen = Instance.new("ScreenGui")
+				espScreen.Name = "Secure2DESP"
+				espScreen.IgnoreGuiInset = true 
+				espScreen.ResetOnSpawn = false
+				pcall(function() espScreen.Parent = CoreGui end)
+				if not espScreen.Parent then espScreen.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 			end
 
 			espLoop = RunService.RenderStepped:Connect(function()
 				local myChar = getCustomCharacter(LocalPlayer)
 				local myPart = getTargetPart(myChar)
-				if not myPart then return end
-
+				
 				for _, player in ipairs(Players:GetPlayers()) do
 					if player ~= LocalPlayer then
 						local char = getCustomCharacter(player)
 						local targetPart = getTargetPart(char)
 						
-						-- ถ้าเจอศัตรู
-						if char and targetPart then
-							-- 1. จัดการป้ายชื่อ (BillboardGui)
-							local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
-							if not gui then
-								gui = Instance.new("BillboardGui")
-								gui.Name = player.Name .. "_ESP"
-								gui.Size = UDim2.new(0, 200, 0, 50)
-								gui.StudsOffset = Vector3.new(0, 2, 0)
-								gui.AlwaysOnTop = true
-								gui.Parent = espFolder
-
-								local textLabel = Instance.new("TextLabel")
-								textLabel.Name = "InfoText"
-								textLabel.Size = UDim2.new(1, 0, 1, 0)
-								textLabel.BackgroundTransparency = 1
-								textLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-								textLabel.TextStrokeTransparency = 0
-								textLabel.TextSize = 14
-								textLabel.Font = Enum.Font.SourceSansBold
-								textLabel.Parent = gui
-							end
-							
-							-- 2. จัดการแสงไฮไลต์ (Highlight)
-							local hl = espFolder:FindFirstChild(player.Name .. "_HL")
-							if not hl then
-								hl = Instance.new("Highlight")
-								hl.Name = player.Name .. "_HL"
-								hl.FillColor = Color3.fromRGB(0, 255, 255)
-								hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-								hl.FillTransparency = 0.5
-								hl.OutlineTransparency = 0
-								hl.Parent = espFolder
-							end
-							
-							-- ชี้เป้าไปที่ชิ้นส่วนเป้าหมาย (อัปเดตตลอดเวลาเผื่อชิ้นส่วนโหลดใหม่)
-							gui.Adornee = targetPart
-							hl.Adornee = char
-							
+						local labelName = player.Name .. "_TextESP"
+						local label = espScreen:FindFirstChild(labelName)
+						
+						if char and targetPart and myPart then
 							local dist = math.floor((myPart.Position - targetPart.Position).Magnitude)
 							
 							if dist <= 2500 then
-								local txt = gui:FindFirstChild("InfoText")
-								if txt then
-									txt.Text = string.format("%s | [%dm]", player.Name, dist)
-									gui.Enabled = true
+								local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+								
+								if onScreen then
+									if not label then
+										label = Instance.new("TextLabel")
+										label.Name = labelName
+										label.Parent = espScreen
+										label.BackgroundTransparency = 1
+										label.TextColor3 = Color3.fromRGB(0, 255, 255)
+										label.TextStrokeTransparency = 0
+										label.Font = Enum.Font.SourceSansBold
+										label.Size = UDim2.new(0, 200, 0, 20)
+										label.AnchorPoint = Vector2.new(0.5, 0.5) 
+									end
+									
+									label.Position = UDim2.new(0, screenPos.X, 0, screenPos.Y)
+									label.Text = string.format("%s | [%dm]", player.Name, dist)
+									label.Visible = true
 									
 									if dist > 1500 then
-										txt.TextSize = 11
+										label.TextSize = 11
 									elseif dist > 500 then
-										txt.TextSize = 12
+										label.TextSize = 12
 									else
-										txt.TextSize = 14
+										label.TextSize = 14
 									end
+								else
+									if label then label.Visible = false end
 								end
-								hl.Enabled = true
 							else
-								gui.Enabled = false
-								hl.Enabled = false
+								if label then label.Visible = false end
 							end
 						else
-							-- ถ้าศัตรูตายหรือหลุดออกนอกระยะโหลด ให้ซ่อน ESP ของคนๆ นั้นไว้
-							local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
-							local hl = espFolder:FindFirstChild(player.Name .. "_HL")
-							if gui then gui.Enabled = false end
-							if hl then hl.Enabled = false end
+							if label then label.Visible = false end
 						end
 					end
 				end
 			end)
 		else
 			if espLoop then espLoop:Disconnect() espLoop = nil end
-			if espFolder then 
-				espFolder:Destroy() 
-				espFolder = nil 
+			if espScreen then 
+				espScreen:Destroy() 
+				espScreen = nil 
 			end
 		end
 	end
 })
 
+-- ================= NIGHT VISION SYSTEM =================
 local nightVisionEnabled = false
 local lightingConnection = nil
 
