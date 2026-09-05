@@ -10,7 +10,6 @@ local FOV_RADIUS = 150
 local PREDICTION_AMOUNT = 0.12 
 local AIM_SMOOTHNESS = 0.5 
 
--- บันทึกค่าแสงสว่างดั้งเดิมของเกมไว้เผื่อตอนกดปิด
 local origLighting = {
 	Brightness = Lighting.Brightness,
 	ClockTime = Lighting.ClockTime,
@@ -192,6 +191,7 @@ Tab:Button({
 
 local espHubEnabled = false
 local espLoop = nil
+local espFolder = nil
 
 Tab:Button({
 	Title = "ESP",
@@ -201,40 +201,12 @@ Tab:Button({
 		espHubEnabled = not espHubEnabled
 		
 		if espHubEnabled then
-			local function applyEsp(player, char)
-				local targetPart = getTargetPart(char)
-				if not targetPart then return end
-
-				if not targetPart:FindFirstChild("PlayerInfoGui") then
-					local gui = Instance.new("BillboardGui")
-					gui.Name = "PlayerInfoGui"
-					gui.Adornee = targetPart
-					gui.Size = UDim2.new(0, 200, 0, 50)
-					gui.StudsOffset = Vector3.new(0, 2, 0)
-					gui.AlwaysOnTop = true
-					gui.Parent = targetPart
-
-					local textLabel = Instance.new("TextLabel")
-					textLabel.Name = "InfoText"
-					textLabel.Size = UDim2.new(1, 0, 1, 0)
-					textLabel.BackgroundTransparency = 1
-					textLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-					textLabel.TextStrokeTransparency = 0
-					textLabel.TextSize = 14
-					textLabel.Font = Enum.Font.SourceSansBold
-					textLabel.Parent = gui
-				end
-
-				if not char:FindFirstChild("PlayerHighlight") then
-					local hl = Instance.new("Highlight")
-					hl.Name = "PlayerHighlight"
-					hl.Adornee = char
-					hl.Parent = char
-					hl.FillColor = Color3.fromRGB(0, 255, 255)
-					hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-					hl.FillTransparency = 0.5
-					hl.OutlineTransparency = 0
-				end
+			-- สร้างโฟลเดอร์ส่วนตัวใน CoreGui เพื่อไม่ให้เกมเข้าถึงหรือลบ ESP ของเราได้
+			if not espFolder then
+				espFolder = Instance.new("Folder")
+				espFolder.Name = "SecureESPFolder"
+				pcall(function() espFolder.Parent = CoreGui end)
+				if not espFolder.Parent then espFolder.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 			end
 
 			espLoop = RunService.RenderStepped:Connect(function()
@@ -247,54 +219,81 @@ Tab:Button({
 						local char = getCustomCharacter(player)
 						local targetPart = getTargetPart(char)
 						
+						-- ถ้าเจอศัตรู
 						if char and targetPart then
-							applyEsp(player, char)
+							-- 1. จัดการป้ายชื่อ (BillboardGui)
+							local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
+							if not gui then
+								gui = Instance.new("BillboardGui")
+								gui.Name = player.Name .. "_ESP"
+								gui.Size = UDim2.new(0, 200, 0, 50)
+								gui.StudsOffset = Vector3.new(0, 2, 0)
+								gui.AlwaysOnTop = true
+								gui.Parent = espFolder
 
-							local gui = targetPart:FindFirstChild("PlayerInfoGui")
-							local hl = char:FindFirstChild("PlayerHighlight")
+								local textLabel = Instance.new("TextLabel")
+								textLabel.Name = "InfoText"
+								textLabel.Size = UDim2.new(1, 0, 1, 0)
+								textLabel.BackgroundTransparency = 1
+								textLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
+								textLabel.TextStrokeTransparency = 0
+								textLabel.TextSize = 14
+								textLabel.Font = Enum.Font.SourceSansBold
+								textLabel.Parent = gui
+							end
+							
+							-- 2. จัดการแสงไฮไลต์ (Highlight)
+							local hl = espFolder:FindFirstChild(player.Name .. "_HL")
+							if not hl then
+								hl = Instance.new("Highlight")
+								hl.Name = player.Name .. "_HL"
+								hl.FillColor = Color3.fromRGB(0, 255, 255)
+								hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+								hl.FillTransparency = 0.5
+								hl.OutlineTransparency = 0
+								hl.Parent = espFolder
+							end
+							
+							-- ชี้เป้าไปที่ชิ้นส่วนเป้าหมาย (อัปเดตตลอดเวลาเผื่อชิ้นส่วนโหลดใหม่)
+							gui.Adornee = targetPart
+							hl.Adornee = char
 							
 							local dist = math.floor((myPart.Position - targetPart.Position).Magnitude)
 							
-							if gui then
+							if dist <= 2500 then
 								local txt = gui:FindFirstChild("InfoText")
 								if txt then
-									if dist <= 2500 then
-										txt.Text = string.format("%s | [%dm]", player.Name, dist)
-										gui.Enabled = true
-										
-										if dist > 1500 then
-											txt.TextSize = 11
-										elseif dist > 500 then
-											txt.TextSize = 12
-										else
-											txt.TextSize = 14
-										end
+									txt.Text = string.format("%s | [%dm]", player.Name, dist)
+									gui.Enabled = true
+									
+									if dist > 1500 then
+										txt.TextSize = 11
+									elseif dist > 500 then
+										txt.TextSize = 12
 									else
-										gui.Enabled = false
+										txt.TextSize = 14
 									end
 								end
+								hl.Enabled = true
+							else
+								gui.Enabled = false
+								hl.Enabled = false
 							end
-							
-							if hl then
-								hl.Enabled = (dist <= 2500)
-							end
+						else
+							-- ถ้าศัตรูตายหรือหลุดออกนอกระยะโหลด ให้ซ่อน ESP ของคนๆ นั้นไว้
+							local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
+							local hl = espFolder:FindFirstChild(player.Name .. "_HL")
+							if gui then gui.Enabled = false end
+							if hl then hl.Enabled = false end
 						end
 					end
 				end
 			end)
 		else
 			if espLoop then espLoop:Disconnect() espLoop = nil end
-			for _, player in ipairs(Players:GetPlayers()) do
-				local char = getCustomCharacter(player)
-				if char then
-					local targetPart = getTargetPart(char)
-					if targetPart and targetPart:FindFirstChild("PlayerInfoGui") then
-						targetPart.PlayerInfoGui:Destroy()
-					end
-					if char:FindFirstChild("PlayerHighlight") then
-						char.PlayerHighlight:Destroy()
-					end
-				end
+			if espFolder then 
+				espFolder:Destroy() 
+				espFolder = nil 
 			end
 		end
 	end
@@ -327,7 +326,6 @@ Tab:Button({
 				lightingConnection = nil
 			end
 			
-			-- คืนค่าเดิมของเกมเมื่อปิด
 			Lighting.Brightness = origLighting.Brightness
 			Lighting.ClockTime = origLighting.ClockTime
 			Lighting.FogEnd = origLighting.FogEnd
