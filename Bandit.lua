@@ -8,7 +8,7 @@ local Camera = workspace.CurrentCamera
 
 local FOV_RADIUS = 150
 local PREDICTION_AMOUNT = 0.12 
-local AIM_SMOOTHNESS = 0.5 
+local AIM_SMOOTHNESS = 1
 
 local origLighting = {
 	Brightness = Lighting.Brightness,
