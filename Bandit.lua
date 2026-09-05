@@ -6,6 +6,8 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 local FOV_RADIUS = 150
+local PREDICTION_AMOUNT = 0.12 
+local AIM_SMOOTHNESS = 0.5 
 
 local function getCustomCharacter(player)
 	if player.Character and player.Character:FindFirstChildWhichIsA("BasePart", true) then
@@ -154,7 +156,16 @@ Tab:Button({
 						if myPart then
 							local targetPart = getBestTargetInFOV(myPart.Position)
 							if targetPart then
-								Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPart.Position), 0.3)
+								local targetVelocity = targetPart.AssemblyLinearVelocity
+								if not targetVelocity then
+									targetVelocity = Vector3.new(0, 0, 0)
+								end
+								
+								local predictedPos = targetPart.Position + (targetVelocity * PREDICTION_AMOUNT)
+								local currentCamCF = Camera.CFrame
+								local targetCF = CFrame.new(currentCamCF.Position, predictedPos)
+								
+								Camera.CFrame = currentCamCF:Lerp(targetCF, AIM_SMOOTHNESS)
 							end
 						end
 					end
