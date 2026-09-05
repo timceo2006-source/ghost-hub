@@ -8,7 +8,7 @@ local Camera = workspace.CurrentCamera
 
 local FOV_RADIUS = 150
 local PREDICTION_AMOUNT = 0.12 
-local AIM_SMOOTHNESS = 1.0 -- ปรับเป็น 1.0 เพื่อให้เป้าล็อกติดแน่น สู้แรงดีดปืน
+local AIM_SMOOTHNESS = 1
 
 local origLighting = {
 	Brightness = Lighting.Brightness,
@@ -108,7 +108,6 @@ local Tab = Window:Tab({
 	Locked = false,
 })
 
--- ================= AIMBOT SYSTEM =================
 local aimbotHubEnabled = false
 local aimbotEnabled = false
 local aimbotLoop = nil
@@ -190,93 +189,114 @@ Tab:Button({
 	end
 })
 
--- ================= ESP 2D SYSTEM (SECURE) =================
 local espHubEnabled = false
 local espLoop = nil
-local espScreen = nil
+local espFolder = nil
 
 Tab:Button({
 	Title = "ESP",
-	Desc = "เปิด/ปิด ESP Players (ระบบ 2D ป้องกันเกมลบ)",
+	Desc = "เปิด/ปิด ESP Players",
 	Locked = false,
 	Callback = function()
 		espHubEnabled = not espHubEnabled
 		
 		if espHubEnabled then
-			if not espScreen then
-				espScreen = Instance.new("ScreenGui")
-				espScreen.Name = "Secure2DESP"
-				espScreen.IgnoreGuiInset = true 
-				espScreen.ResetOnSpawn = false
-				pcall(function() espScreen.Parent = CoreGui end)
-				if not espScreen.Parent then espScreen.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+			if not espFolder then
+				espFolder = Instance.new("Folder")
+				espFolder.Name = "SecureESPFolder"
+				pcall(function() espFolder.Parent = CoreGui end)
+				if not espFolder.Parent then espFolder.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 			end
 
 			espLoop = RunService.RenderStepped:Connect(function()
 				local myChar = getCustomCharacter(LocalPlayer)
 				local myPart = getTargetPart(myChar)
-				
+				if not myPart then return end
+
 				for _, player in ipairs(Players:GetPlayers()) do
 					if player ~= LocalPlayer then
 						local char = getCustomCharacter(player)
 						local targetPart = getTargetPart(char)
 						
-						local labelName = player.Name .. "_TextESP"
-						local label = espScreen:FindFirstChild(labelName)
-						
-						if char and targetPart and myPart then
+						if char and targetPart then
+							local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
+							if not gui then
+								gui = Instance.new("BillboardGui")
+								gui.Name = player.Name .. "_ESP"
+								gui.Size = UDim2.new(0, 200, 0, 50)
+								gui.StudsOffset = Vector3.new(0, 2, 0)
+								gui.AlwaysOnTop = true
+								gui.Parent = espFolder
+
+								local textLabel = Instance.new("TextLabel")
+								textLabel.Name = "InfoText"
+								textLabel.Size = UDim2.new(1, 0, 1, 0)
+								textLabel.BackgroundTransparency = 1
+								textLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
+								textLabel.TextStrokeTransparency = 0
+								textLabel.TextSize = 14
+								textLabel.Font = Enum.Font.SourceSansBold
+								textLabel.Parent = gui
+							end
+							
+							local hl = espFolder:FindFirstChild(player.Name .. "_HL")
+							if not hl then
+								hl = Instance.new("Highlight")
+								hl.Name = player.Name .. "_HL"
+								hl.FillColor = Color3.fromRGB(0, 255, 255)
+								hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+								hl.FillTransparency = 0.5
+								hl.OutlineTransparency = 0
+								hl.Parent = espFolder
+							end
+							
+							-- แก้กระพริบ: เช็กก่อนว่า Adornee ถูกต้องหรือยัง ถ้าถูกแล้วห้ามเซ็ตซ้ำ
+							if gui.Adornee ~= targetPart then gui.Adornee = targetPart end
+							if hl.Adornee ~= char then hl.Adornee = char end
+							
 							local dist = math.floor((myPart.Position - targetPart.Position).Magnitude)
 							
 							if dist <= 2500 then
-								local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-								
-								if onScreen then
-									if not label then
-										label = Instance.new("TextLabel")
-										label.Name = labelName
-										label.Parent = espScreen
-										label.BackgroundTransparency = 1
-										label.TextColor3 = Color3.fromRGB(0, 255, 255)
-										label.TextStrokeTransparency = 0
-										label.Font = Enum.Font.SourceSansBold
-										label.Size = UDim2.new(0, 200, 0, 20)
-										label.AnchorPoint = Vector2.new(0.5, 0.5) 
-									end
-									
-									label.Position = UDim2.new(0, screenPos.X, 0, screenPos.Y)
-									label.Text = string.format("%s | [%dm]", player.Name, dist)
-									label.Visible = true
+								local txt = gui:FindFirstChild("InfoText")
+								if txt then
+									txt.Text = string.format("%s | [%dm]", player.Name, dist)
 									
 									if dist > 1500 then
-										label.TextSize = 11
+										txt.TextSize = 11
 									elseif dist > 500 then
-										label.TextSize = 12
+										txt.TextSize = 12
 									else
-										label.TextSize = 14
+										txt.TextSize = 14
 									end
-								else
-									if label then label.Visible = false end
 								end
+								
+								-- แก้กระพริบ: สั่งเปิดเฉพาะตอนที่มันปิดอยู่
+								if not gui.Enabled then gui.Enabled = true end
+								if not hl.Enabled then hl.Enabled = true end
 							else
-								if label then label.Visible = false end
+								-- สั่งปิดเฉพาะตอนที่มันเปิดอยู่
+								if gui.Enabled then gui.Enabled = false end
+								if hl.Enabled then hl.Enabled = false end
 							end
 						else
-							if label then label.Visible = false end
+							local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
+							local hl = espFolder:FindFirstChild(player.Name .. "_HL")
+							if gui and gui.Enabled then gui.Enabled = false end
+							if hl and hl.Enabled then hl.Enabled = false end
 						end
 					end
 				end
 			end)
 		else
 			if espLoop then espLoop:Disconnect() espLoop = nil end
-			if espScreen then 
-				espScreen:Destroy() 
-				espScreen = nil 
+			if espFolder then 
+				espFolder:Destroy() 
+				espFolder = nil 
 			end
 		end
 	end
 })
 
--- ================= NIGHT VISION SYSTEM =================
 local nightVisionEnabled = false
 local lightingConnection = nil
 
