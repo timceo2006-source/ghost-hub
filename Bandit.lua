@@ -560,6 +560,10 @@ Tab:Toggle({
 						-- กล่อง Large Military Box (ทอง)
 						elseif v.Name == "Large Military Box" or v.Name == "LargeMilitaryBox" then
 							createOrUpdateObjectESP(crateFolder, v, "📦 กล่องอาวุธใหญ่", Color3.fromRGB(255, 215, 0), myPart)
+
+						-- กล่อง Large ABPOPA Box (ม่วง)
+						elseif v.Name == "Large ABPOPA Box" or v.Name == "LargeABPOPABox" then
+							createOrUpdateObjectESP(crateFolder, v, "📦 กล่อง ABPOPA ใหญ่", Color3.fromRGB(180, 50, 255), myPart)
 						end
 					end
 				end
