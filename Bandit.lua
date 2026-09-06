@@ -1,3 +1,5 @@
+task.wait(2) -- รอให้เกมและ Executor โหลดให้สมบูรณ์ก่อน
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
@@ -175,7 +177,6 @@ local function createOrUpdateObjectESP(folder, object, displayName, color, myPar
 	end
 end
 
--- ฟังก์ชันสแกนหาบอทแบบประหยัดทรัพยากร (ไม่ทำให้ค้าง)
 local function getBotsSafe(parent, list)
 	for _, obj in ipairs(parent:GetChildren()) do
 		if obj:IsA("Model") then
@@ -187,16 +188,34 @@ local function getBotsSafe(parent, list)
 				end
 			end
 		end
-		-- ค้นหาต่อเฉพาะในโฟลเดอร์หรือโมเดล เพื่อลดภาระเครื่อง
 		if obj:IsA("Folder") or obj:IsA("Model") then
 			getBotsSafe(obj, list)
 		end
 	end
 end
 
-print("กำลังโหลด Ghost Hub...")
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+-- ==========================================
+-- ระบบโหลด UI แบบปลอดภัย (ป้องกันแอพแครช)
+-- ==========================================
+print("กำลังดาวน์โหลดข้อมูล UI...")
+local success, uiData = pcall(function()
+	return game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua")
+end)
+
+if not success then
+	warn("ดึงข้อมูล UI ไม่สำเร็จ กรุณาเช็คอินเทอร์เน็ต หรือลองรันใหม่: " .. tostring(uiData))
+	return
+end
+
+local loadFunc, loadErr = loadstring(uiData)
+if not loadFunc then
+	warn("แปลงโค้ด UI ไม่สำเร็จ (Executor อาจจะไม่รองรับ): " .. tostring(loadErr))
+	return
+end
+
+local WindUI = loadFunc()
 print("โหลด UI สำเร็จ!")
+-- ==========================================
 
 local Window = WindUI:CreateWindow({
 	Title = "Ghost Hub",
@@ -422,10 +441,9 @@ Tab:Toggle({
 				local myPart = getTargetPart(myChar)
 				if not myPart then return end
 
-				-- สแกนหาบอทใหม่ทุกๆ 2 วินาที (แก้ปัญหากระตุก)
 				if tick() - lastBotScan > 2 then
 					lastBotScan = tick()
-					cachedBots = {} -- ล้างแคชเก่าทิ้งแบบปลอดภัย
+					cachedBots = {}
 					getBotsSafe(workspace, cachedBots)
 				end
 
@@ -593,22 +611,4 @@ Tab:Toggle({
 				end
 			end)
 		else
-			if crateLoop then crateLoop:Disconnect() crateLoop = nil end
-			if crateFolder then crateFolder:Destroy() crateFolder = nil end
-		end
-	end
-})
-
-local lightingConnection = nil
-
-Tab:Toggle({
-	Title = "Night Vision",
-	Desc = "เปิด/ปิด มองกลางคืน (สว่างทั้งแมพ)",
-	Value = false,
-	Callback = function(state)
-		if state then
-			local function applyNightVision()
-				Lighting.Brightness = 2
-				Lighting.ClockTime = 14
-				Lighting.FogEnd = 100000
-				
+			if crateLoop then crateLoop:Disconnect() crateLoop = nil en
