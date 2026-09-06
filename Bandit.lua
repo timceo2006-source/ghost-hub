@@ -1,5 +1,3 @@
-task.wait(2) -- รอให้เกมและ Executor โหลดให้สมบูรณ์ก่อน
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
@@ -20,6 +18,7 @@ local origLighting = {
 	Ambient = Lighting.Ambient
 }
 
+-- ฟังก์ชันสำหรับทำให้ปุ่ม UI ลากไปมาได้
 local function makeDraggable(gui)
 	local dragging
 	local dragInput
@@ -72,14 +71,20 @@ local function getTargetPart(char)
 		   char:FindFirstChildWhichIsA("BasePart", true)
 end
 
+-- ฟังก์ชันสำหรับกรอง แอนตี้ชีท (ผีล่องหน)
 local function isValidTarget(char)
 	if not char then return false end
+	
 	local hum = char:FindFirstChildOfClass("Humanoid")
-	if hum and hum.Health <= 0 then return false end
+	if hum and hum.Health <= 0 then 
+		return false 
+	end
 	
 	local head = char:FindFirstChild("Head") or char:FindFirstChild("Head", true)
 	if head and head:IsA("BasePart") then
-		if head.Transparency >= 0.9 then return false end
+		if head.Transparency >= 0.9 then
+			return false
+		end
 	else
 		local isVisible = false
 		for _, part in ipairs(char:GetChildren()) do
@@ -90,12 +95,14 @@ local function isValidTarget(char)
 		end
 		if not isVisible then return false end
 	end
+	
 	return true
 end
 
 local function isVisible(targetPart)
 	local myChar = getCustomCharacter(LocalPlayer)
 	if not myChar then return false end
+	
 	local myPart = getTargetPart(myChar)
 	if not myPart then return false end
 
@@ -141,6 +148,7 @@ end
 
 local function createOrUpdateObjectESP(folder, object, displayName, color, myPart)
 	if not object then return end
+	
 	local targetPart = object
 	if object:IsA("Model") then
 		targetPart = object.PrimaryPart or object:FindFirstChildWhichIsA("BasePart")
@@ -170,6 +178,7 @@ local function createOrUpdateObjectESP(folder, object, displayName, color, myPar
 	end
 	
 	if gui.Adornee ~= targetPart then gui.Adornee = targetPart end
+	
 	local dist = math.floor((myPart.Position - targetPart.Position).Magnitude)
 	local txt = gui:FindFirstChild("InfoText")
 	if txt then
@@ -177,45 +186,7 @@ local function createOrUpdateObjectESP(folder, object, displayName, color, myPar
 	end
 end
 
-local function getBotsSafe(parent, list)
-	for _, obj in ipairs(parent:GetChildren()) do
-		if obj:IsA("Model") then
-			local hum = obj:FindFirstChildOfClass("Humanoid")
-			if hum and hum.Health > 0 then
-				local isRealPlayer = Players:GetPlayerFromCharacter(obj)
-				if not isRealPlayer and obj ~= LocalPlayer.Character and isValidTarget(obj) then
-					table.insert(list, obj)
-				end
-			end
-		end
-		if obj:IsA("Folder") or obj:IsA("Model") then
-			getBotsSafe(obj, list)
-		end
-	end
-end
-
--- ==========================================
--- ระบบโหลด UI แบบปลอดภัย (ป้องกันแอพแครช)
--- ==========================================
-print("กำลังดาวน์โหลดข้อมูล UI...")
-local success, uiData = pcall(function()
-	return game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua")
-end)
-
-if not success then
-	warn("ดึงข้อมูล UI ไม่สำเร็จ กรุณาเช็คอินเทอร์เน็ต หรือลองรันใหม่: " .. tostring(uiData))
-	return
-end
-
-local loadFunc, loadErr = loadstring(uiData)
-if not loadFunc then
-	warn("แปลงโค้ด UI ไม่สำเร็จ (Executor อาจจะไม่รองรับ): " .. tostring(loadErr))
-	return
-end
-
-local WindUI = loadFunc()
-print("โหลด UI สำเร็จ!")
--- ==========================================
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Window = WindUI:CreateWindow({
 	Title = "Ghost Hub",
@@ -225,7 +196,7 @@ local Window = WindUI:CreateWindow({
 	Size = UDim2.fromOffset(580, 460),
 	MinSize = Vector2.new(560, 350),
 	MaxSize = Vector2.new(850, 560),
-	ToggleKey = Enum.KeyCode.LeftShift,
+	ToggleKey = Enum.KeyCode.LeftShift, -- กด Left Shift เพื่อซ่อน/แสดงเมนู
 	Transparent = true,
 	Theme = "Dark",
 	Resizable = true,
@@ -349,7 +320,7 @@ Tab:Toggle({
 							if not gui then
 								gui = Instance.new("BillboardGui")
 								gui.Name = player.Name .. "_ESP"
-								gui.Size = UDim2.new(0, 200, 0, 60)
+								gui.Size = UDim2.new(0, 200, 0, 60) -- เพิ่มขนาดรองรับเลือด
 								gui.StudsOffset = Vector3.new(0, 2, 0)
 								gui.AlwaysOnTop = true
 								gui.Parent = espFolder
@@ -384,6 +355,7 @@ Tab:Toggle({
 							if dist <= 2500 then
 								local txt = gui:FindFirstChild("InfoText")
 								if txt then
+									-- เพิ่มการบอกเลือด
 									local hpText = ""
 									if hum then
 										hpText = string.format("\n[ %d / %d HP ]", math.floor(hum.Health), math.floor(hum.MaxHealth))
@@ -441,12 +413,27 @@ Tab:Toggle({
 				local myPart = getTargetPart(myChar)
 				if not myPart then return end
 
+				-- สแกนหาบอทใหม่ทุกๆ 2 วินาที เพื่อป้องกันเกมกระตุกจากการค้นหาในโฟลเดอร์ลึกๆ
 				if tick() - lastBotScan > 2 then
 					lastBotScan = tick()
-					cachedBots = {}
-					getBotsSafe(workspace, cachedBots)
+					table.clear(cachedBots)
+					
+					-- ค้นหาเจาะลึกลงไปทุกที่ใน Workspace
+					for _, model in ipairs(workspace:GetDescendants()) do
+						if model:IsA("Model") and model ~= myChar then
+							local hum = model:FindFirstChildOfClass("Humanoid")
+							if hum and hum.Health > 0 then
+								local isRealPlayer = Players:GetPlayerFromCharacter(model)
+								-- ถ้าไม่ใช่ผู้เล่น และผ่านการกรอง (ไม่ใช่แอนตี้ชีท)
+								if not isRealPlayer and isValidTarget(model) then
+									table.insert(cachedBots, model)
+								end
+							end
+						end
+					end
 				end
 
+				-- เรนเดอร์ ESP สำหรับบอทที่ค้นพบ
 				for _, model in ipairs(cachedBots) do
 					if model and model.Parent then
 						local hum = model:FindFirstChildOfClass("Humanoid")
@@ -459,7 +446,7 @@ Tab:Toggle({
 							if not gui then
 								gui = Instance.new("BillboardGui")
 								gui.Name = espName .. "_ESP"
-								gui.Size = UDim2.new(0, 200, 0, 60)
+								gui.Size = UDim2.new(0, 200, 0, 60) -- เพิ่มขนาดรองรับเลือด
 								gui.StudsOffset = Vector3.new(0, 2, 0)
 								gui.AlwaysOnTop = true
 								gui.Parent = botEspFolder
@@ -494,6 +481,7 @@ Tab:Toggle({
 							if dist <= 2500 then
 								local txt = gui:FindFirstChild("InfoText")
 								if txt then
+									-- แสดงชื่อโมเดลบอท (เช่น Scav, Mutant) และเลือด
 									local hpText = string.format("\n[ %d / %d HP ]", math.floor(hum.Health), math.floor(hum.MaxHealth))
 									txt.Text = string.format("[%s] | [%dm]%s", model.Name, dist, hpText)
 									
@@ -512,6 +500,7 @@ Tab:Toggle({
 					end
 				end
 				
+				-- ลบ ESP ของบอทที่ตายแล้วหรือถูกลบออกไป
 				for _, obj in ipairs(botEspFolder:GetChildren()) do
 					if obj:IsA("BillboardGui") or obj:IsA("Highlight") then
 						local adornee = obj.Adornee
@@ -611,4 +600,14 @@ Tab:Toggle({
 				end
 			end)
 		else
-			if crateLoop then crateLoop:Disconnect() crateLoop = nil en
+			if crateLoop then crateLoop:Disconnect() crateLoop = nil end
+			if crateFolder then crateFolder:Destroy() crateFolder = nil end
+		end
+	end
+})
+
+local lightingConnection = nil
+
+Tab:Toggle({
+	Title = "Night Vision",
+	Desc = "เปิด/ปิด มองกลางคืน (สว่า
