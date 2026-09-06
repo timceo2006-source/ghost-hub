@@ -146,6 +146,7 @@ local function getBestTargetInFOV(myPos)
 	return closestTarget
 end
 
+-- ฟังก์ชันสร้างป้ายบอกระยะทางสำหรับสิ่งของ
 local function createOrUpdateObjectESP(folder, object, displayName, color, myPart)
 	if not object then return end
 	
@@ -196,7 +197,7 @@ local Window = WindUI:CreateWindow({
 	Size = UDim2.fromOffset(580, 460),
 	MinSize = Vector2.new(560, 350),
 	MaxSize = Vector2.new(850, 560),
-	ToggleKey = Enum.KeyCode.LeftShift, -- กด Left Shift เพื่อซ่อน/แสดงเมนู
+	ToggleKey = Enum.KeyCode.LeftShift,
 	Transparent = true,
 	Theme = "Dark",
 	Resizable = true,
@@ -292,7 +293,7 @@ local espFolder = nil
 
 Tab:Toggle({
 	Title = "ESP Players",
-	Desc = "เปิด/ปิด ESP ผู้เล่น + บอกเลือด (สีฟ้า)",
+	Desc = "เปิด/ปิด ESP ผู้เล่น (สีฟ้า)",
 	Value = false,
 	Callback = function(state)
 		if state then
@@ -314,13 +315,11 @@ Tab:Toggle({
 						local targetPart = getTargetPart(char)
 						
 						if char and targetPart and isValidTarget(char) then
-							local hum = char:FindFirstChildOfClass("Humanoid")
-							
 							local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
 							if not gui then
 								gui = Instance.new("BillboardGui")
 								gui.Name = player.Name .. "_ESP"
-								gui.Size = UDim2.new(0, 200, 0, 60) -- เพิ่มขนาดรองรับเลือด
+								gui.Size = UDim2.new(0, 200, 0, 50)
 								gui.StudsOffset = Vector3.new(0, 2, 0)
 								gui.AlwaysOnTop = true
 								gui.Parent = espFolder
@@ -330,7 +329,7 @@ Tab:Toggle({
 								textLabel.Size = UDim2.new(1, 0, 1, 0)
 								textLabel.BackgroundTransparency = 1
 								textLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-								textLabel.TextStrokeTransparency = 0.5
+								textLabel.TextStrokeTransparency = 0
 								textLabel.TextSize = 14
 								textLabel.Font = Enum.Font.SourceSansBold
 								textLabel.Parent = gui
@@ -355,14 +354,7 @@ Tab:Toggle({
 							if dist <= 2500 then
 								local txt = gui:FindFirstChild("InfoText")
 								if txt then
-									-- เพิ่มการบอกเลือด
-									local hpText = ""
-									if hum then
-										hpText = string.format("\n[ %d / %d HP ]", math.floor(hum.Health), math.floor(hum.MaxHealth))
-									end
-									
-									txt.Text = string.format("%s | [%dm]%s", player.Name, dist, hpText)
-									
+									txt.Text = string.format("%s | [%dm]", player.Name, dist)
 									if dist > 1500 then txt.TextSize = 11
 									elseif dist > 500 then txt.TextSize = 12
 									else txt.TextSize = 14 end
@@ -392,12 +384,10 @@ Tab:Toggle({
 
 local botEspLoop = nil
 local botEspFolder = nil
-local cachedBots = {}
-local lastBotScan = 0
 
 Tab:Toggle({
 	Title = "ESP บอท (Bot)",
-	Desc = "เปิด/ปิด ESP บอท/มอนสเตอร์ + บอกเลือด (สีแดง)",
+	Desc = "เปิด/ปิด ESP บอท/NPC (สีแดง)",
 	Value = false,
 	Callback = function(state)
 		if state then
@@ -413,94 +403,72 @@ Tab:Toggle({
 				local myPart = getTargetPart(myChar)
 				if not myPart then return end
 
-				-- สแกนหาบอทใหม่ทุกๆ 2 วินาที เพื่อป้องกันเกมกระตุกจากการค้นหาในโฟลเดอร์ลึกๆ
-				if tick() - lastBotScan > 2 then
-					lastBotScan = tick()
-					table.clear(cachedBots)
-					
-					-- ค้นหาเจาะลึกลงไปทุกที่ใน Workspace
-					for _, model in ipairs(workspace:GetDescendants()) do
-						if model:IsA("Model") and model ~= myChar then
-							local hum = model:FindFirstChildOfClass("Humanoid")
-							if hum and hum.Health > 0 then
-								local isRealPlayer = Players:GetPlayerFromCharacter(model)
-								-- ถ้าไม่ใช่ผู้เล่น และผ่านการกรอง (ไม่ใช่แอนตี้ชีท)
-								if not isRealPlayer and isValidTarget(model) then
-									table.insert(cachedBots, model)
-								end
-							end
-						end
-					end
-				end
-
-				-- เรนเดอร์ ESP สำหรับบอทที่ค้นพบ
-				for _, model in ipairs(cachedBots) do
-					if model and model.Parent then
+				for _, model in ipairs(workspace:GetChildren()) do
+					if model:IsA("Model") and model ~= myChar then
 						local hum = model:FindFirstChildOfClass("Humanoid")
 						local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Head")
 						
 						if hum and root and hum.Health > 0 then
-							local espName = "Bot_" .. tostring(model:GetDebugId(10))
-							
-							local gui = botEspFolder:FindFirstChild(espName .. "_ESP")
-							if not gui then
-								gui = Instance.new("BillboardGui")
-								gui.Name = espName .. "_ESP"
-								gui.Size = UDim2.new(0, 200, 0, 60) -- เพิ่มขนาดรองรับเลือด
-								gui.StudsOffset = Vector3.new(0, 2, 0)
-								gui.AlwaysOnTop = true
-								gui.Parent = botEspFolder
+							local isRealPlayer = Players:GetPlayerFromCharacter(model)
+							if not isRealPlayer then
+								local espName = "Bot_" .. tostring(model:GetDebugId(10))
+								
+								local gui = botEspFolder:FindFirstChild(espName .. "_ESP")
+								if not gui then
+									gui = Instance.new("BillboardGui")
+									gui.Name = espName .. "_ESP"
+									gui.Size = UDim2.new(0, 200, 0, 50)
+									gui.StudsOffset = Vector3.new(0, 2, 0)
+									gui.AlwaysOnTop = true
+									gui.Parent = botEspFolder
 
-								local textLabel = Instance.new("TextLabel")
-								textLabel.Name = "InfoText"
-								textLabel.Size = UDim2.new(1, 0, 1, 0)
-								textLabel.BackgroundTransparency = 1
-								textLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
-								textLabel.TextStrokeTransparency = 0.5
-								textLabel.TextSize = 14
-								textLabel.Font = Enum.Font.SourceSansBold
-								textLabel.Parent = gui
-							end
-							
-							local hl = botEspFolder:FindFirstChild(espName .. "_HL")
-							if not hl then
-								hl = Instance.new("Highlight")
-								hl.Name = espName .. "_HL"
-								hl.FillColor = Color3.fromRGB(255, 50, 50)
-								hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-								hl.FillTransparency = 0.5
-								hl.OutlineTransparency = 0
-								hl.Parent = botEspFolder
-							end
-							
-							if gui.Adornee ~= root then gui.Adornee = root end
-							if hl.Adornee ~= model then hl.Adornee = model end
-							
-							local dist = math.floor((myPart.Position - root.Position).Magnitude)
-							
-							if dist <= 2500 then
-								local txt = gui:FindFirstChild("InfoText")
-								if txt then
-									-- แสดงชื่อโมเดลบอท (เช่น Scav, Mutant) และเลือด
-									local hpText = string.format("\n[ %d / %d HP ]", math.floor(hum.Health), math.floor(hum.MaxHealth))
-									txt.Text = string.format("[%s] | [%dm]%s", model.Name, dist, hpText)
-									
-									if dist > 1500 then txt.TextSize = 11
-									elseif dist > 500 then txt.TextSize = 12
-									else txt.TextSize = 14 end
+									local textLabel = Instance.new("TextLabel")
+									textLabel.Name = "InfoText"
+									textLabel.Size = UDim2.new(1, 0, 1, 0)
+									textLabel.BackgroundTransparency = 1
+									textLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+									textLabel.TextStrokeTransparency = 0
+									textLabel.TextSize = 14
+									textLabel.Font = Enum.Font.SourceSansBold
+									textLabel.Parent = gui
 								end
 								
-								if not gui.Enabled then gui.Enabled = true end
-								if not hl.Enabled then hl.Enabled = true end
-							else
-								if gui.Enabled then gui.Enabled = false end
-								if hl.Enabled then hl.Enabled = false end
+								local hl = botEspFolder:FindFirstChild(espName .. "_HL")
+								if not hl then
+									hl = Instance.new("Highlight")
+									hl.Name = espName .. "_HL"
+									hl.FillColor = Color3.fromRGB(255, 50, 50)
+									hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+									hl.FillTransparency = 0.5
+									hl.OutlineTransparency = 0
+									hl.Parent = botEspFolder
+								end
+								
+								if gui.Adornee ~= root then gui.Adornee = root end
+								if hl.Adornee ~= model then hl.Adornee = model end
+								
+								local dist = math.floor((myPart.Position - root.Position).Magnitude)
+								
+								if dist <= 2500 then
+									local txt = gui:FindFirstChild("InfoText")
+									if txt then
+										txt.Text = string.format("[BOT] | [%dm]", dist)
+										if dist > 1500 then txt.TextSize = 11
+										elseif dist > 500 then txt.TextSize = 12
+										else txt.TextSize = 14 end
+									end
+									
+									if not gui.Enabled then gui.Enabled = true end
+									if not hl.Enabled then hl.Enabled = true end
+								else
+									if gui.Enabled then gui.Enabled = false end
+									if hl.Enabled then hl.Enabled = false end
+								end
 							end
 						end
 					end
 				end
 				
-				-- ลบ ESP ของบอทที่ตายแล้วหรือถูกลบออกไป
 				for _, obj in ipairs(botEspFolder:GetChildren()) do
 					if obj:IsA("BillboardGui") or obj:IsA("Highlight") then
 						local adornee = obj.Adornee
@@ -581,12 +549,19 @@ Tab:Toggle({
 				local containers = workspace:FindFirstChild("Containers")
 				if containers then
 					for _, v in ipairs(containers:GetChildren()) do
+						-- กล่อง Military ทั่วไป (ส้ม)
 						if v.Name == "MilitaryCrate" or v.Name == "Military Crate" then
 							createOrUpdateObjectESP(crateFolder, v, "📦 กล่องทหาร", Color3.fromRGB(255, 165, 0), myPart)
+						
+						-- กล่อง Small Military Box (เขียว)
 						elseif v.Name == "Small Military Box" or v.Name == "SmallMilitaryBox" then
 							createOrUpdateObjectESP(crateFolder, v, "📦 กล่องอาวุธเล็ก", Color3.fromRGB(50, 255, 50), myPart) 
+						
+						-- กล่อง Large Military Box (ทอง)
 						elseif v.Name == "Large Military Box" or v.Name == "LargeMilitaryBox" then
 							createOrUpdateObjectESP(crateFolder, v, "📦 กล่องอาวุธใหญ่", Color3.fromRGB(255, 215, 0), myPart)
+
+						-- กล่อง Large ABPOPA Box (ม่วง)
 						elseif v.Name == "Large ABPOPA Box" or v.Name == "LargeABPOPABox" then
 							createOrUpdateObjectESP(crateFolder, v, "📦 กล่อง ABPOPA ใหญ่", Color3.fromRGB(180, 50, 255), myPart)
 						end
@@ -610,4 +585,29 @@ local lightingConnection = nil
 
 Tab:Toggle({
 	Title = "Night Vision",
-	Desc = "เปิด/ปิด มองกลางคืน (สว่า
+	Desc = "เปิด/ปิด มองกลางคืน (สว่างทั้งแมพ)",
+	Value = false,
+	Callback = function(state)
+		if state then
+			local function applyNightVision()
+				Lighting.Brightness = 2
+				Lighting.ClockTime = 14
+				Lighting.FogEnd = 100000
+				Lighting.GlobalShadows = false
+				Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+			end
+			applyNightVision()
+			lightingConnection = Lighting.Changed:Connect(applyNightVision)
+		else
+			if lightingConnection then
+				lightingConnection:Disconnect()
+				lightingConnection = nil
+			end
+			Lighting.Brightness = origLighting.Brightness
+			Lighting.ClockTime = origLighting.ClockTime
+			Lighting.FogEnd = origLighting.FogEnd
+			Lighting.GlobalShadows = origLighting.GlobalShadows
+			Lighting.Ambient = origLighting.Ambient
+		end
+	end
+})
