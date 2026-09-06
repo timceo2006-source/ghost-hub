@@ -18,7 +18,7 @@ local origLighting = {
 	Ambient = Lighting.Ambient
 }
 
--- [เพิ่มใหม่] ฟังก์ชันสำหรับทำให้ปุ่ม UI ลากไปมาได้
+-- ฟังก์ชันสำหรับทำให้ปุ่ม UI ลากไปมาได้
 local function makeDraggable(gui)
 	local dragging
 	local dragInput
@@ -219,7 +219,7 @@ local screenGui = nil
 
 Tab:Toggle({
 	Title = "Aimbot",
-	Desc = "เปิด/ปิด Aimbot และ ปุ่มกลางจอ (กด X และสามารถคลิกค้างเพื่อลากปุ่มได้)",
+	Desc = "เปิด/ปิด Aimbot และ ปุ่มกลางจอ (กด X และคลิกค้างเพื่อลากปุ่มได้)",
 	Value = false,
 	Callback = function(state)
 		if state then
@@ -239,10 +239,9 @@ Tab:Toggle({
 			toggleButton.TextSize = 13
 			toggleButton.Font = Enum.Font.SourceSansBold
 			toggleButton.Text = "AIM: OFF"
-			toggleButton.Active = true -- [สำคัญ] เปิดให้รับการกระทำของเมาส์เพื่อใช้ลาก
+			toggleButton.Active = true
 			toggleButton.Parent = screenGui
 			
-			-- เรียกใช้ระบบลากปุ่ม
 			makeDraggable(toggleButton)
 			
 			aimbotEnabled = false
@@ -383,7 +382,6 @@ Tab:Toggle({
 	end
 })
 
--- [เพิ่มใหม่] ฟังก์ชันที่ 6 ESP บอท (สีแดง)
 local botEspLoop = nil
 local botEspFolder = nil
 
@@ -405,15 +403,12 @@ Tab:Toggle({
 				local myPart = getTargetPart(myChar)
 				if not myPart then return end
 
-				-- สแกนหาสิ่งที่มีชีวิตใน Workspace
 				for _, model in ipairs(workspace:GetChildren()) do
 					if model:IsA("Model") and model ~= myChar then
 						local hum = model:FindFirstChildOfClass("Humanoid")
 						local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Head")
 						
-						-- ถ้ามีเลือด และยังไม่ตาย
 						if hum and root and hum.Health > 0 then
-							-- ตรวจสอบว่าเป็นผู้เล่นจริงไหม ถ้าเป็น nil แปลว่าเป็นบอท
 							local isRealPlayer = Players:GetPlayerFromCharacter(model)
 							if not isRealPlayer then
 								local espName = "Bot_" .. tostring(model:GetDebugId(10))
@@ -431,7 +426,7 @@ Tab:Toggle({
 									textLabel.Name = "InfoText"
 									textLabel.Size = UDim2.new(1, 0, 1, 0)
 									textLabel.BackgroundTransparency = 1
-									textLabel.TextColor3 = Color3.fromRGB(255, 50, 50) -- สีแดงสำหรับบอท
+									textLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
 									textLabel.TextStrokeTransparency = 0
 									textLabel.TextSize = 14
 									textLabel.Font = Enum.Font.SourceSansBold
@@ -442,7 +437,7 @@ Tab:Toggle({
 								if not hl then
 									hl = Instance.new("Highlight")
 									hl.Name = espName .. "_HL"
-									hl.FillColor = Color3.fromRGB(255, 50, 50) -- ไฮไลท์แดง
+									hl.FillColor = Color3.fromRGB(255, 50, 50)
 									hl.OutlineColor = Color3.fromRGB(255, 255, 255)
 									hl.FillTransparency = 0.5
 									hl.OutlineTransparency = 0
@@ -474,7 +469,6 @@ Tab:Toggle({
 					end
 				end
 				
-				-- ลบ ESP ของบอทที่ตายแล้วหรือถูกลบออกไปจากแมพ
 				for _, obj in ipairs(botEspFolder:GetChildren()) do
 					if obj:IsA("BillboardGui") or obj:IsA("Highlight") then
 						local adornee = obj.Adornee
@@ -536,7 +530,7 @@ local crateFolder = nil
 
 Tab:Toggle({
 	Title = "ESP กล่องทหาร",
-	Desc = "แสดงกล่อง Military Crate",
+	Desc = "แสดงกล่อง Military ทุกประเภท",
 	Value = false,
 	Callback = function(state)
 		if state then
@@ -555,13 +549,21 @@ Tab:Toggle({
 				local containers = workspace:FindFirstChild("Containers")
 				if containers then
 					for _, v in ipairs(containers:GetChildren()) do
+						-- กล่อง Military ทั่วไป (ส้ม)
 						if v.Name == "MilitaryCrate" or v.Name == "Military Crate" then
 							createOrUpdateObjectESP(crateFolder, v, "📦 กล่องทหาร", Color3.fromRGB(255, 165, 0), myPart)
+						
+						-- กล่อง Small Military Box (เขียว)
+						elseif v.Name == "Small Military Box" or v.Name == "SmallMilitaryBox" then
+							createOrUpdateObjectESP(crateFolder, v, "📦 กล่องอาวุธเล็ก", Color3.fromRGB(50, 255, 50), myPart) 
+						
+						-- กล่อง Large Military Box (ทอง)
+						elseif v.Name == "Large Military Box" or v.Name == "LargeMilitaryBox" then
+							createOrUpdateObjectESP(crateFolder, v, "📦 กล่องอาวุธใหญ่", Color3.fromRGB(255, 215, 0), myPart)
 						end
 					end
 				end
 				
-				-- เคลียร์ป้ายเก่าๆ กรณีของถูกเก็บหรือหายไป
 				for _, gui in ipairs(crateFolder:GetChildren()) do
 					if not gui.Adornee or not gui.Adornee.Parent then
 						gui:Destroy()
