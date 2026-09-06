@@ -18,6 +18,41 @@ local origLighting = {
 	Ambient = Lighting.Ambient
 }
 
+-- [เพิ่มใหม่] ฟังก์ชันสำหรับทำให้ปุ่ม UI ลากไปมาได้
+local function makeDraggable(gui)
+	local dragging
+	local dragInput
+	local dragStart
+	local startPos
+
+	gui.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = gui.Position
+
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+
+	gui.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			local delta = input.Position - dragStart
+			gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		end
+	end)
+end
+
 local function getCustomCharacter(player)
 	if player.Character and player.Character:FindFirstChildWhichIsA("BasePart", true) then
 		return player.Character
@@ -184,7 +219,7 @@ local screenGui = nil
 
 Tab:Toggle({
 	Title = "Aimbot",
-	Desc = "เปิด/ปิด Aimbot และ ปุ่มกลางจอ (กด X เพื่อเปิด/ปิด)",
+	Desc = "เปิด/ปิด Aimbot และ ปุ่มกลางจอ (กด X และสามารถคลิกค้างเพื่อลากปุ่มได้)",
 	Value = false,
 	Callback = function(state)
 		if state then
@@ -204,7 +239,11 @@ Tab:Toggle({
 			toggleButton.TextSize = 13
 			toggleButton.Font = Enum.Font.SourceSansBold
 			toggleButton.Text = "AIM: OFF"
+			toggleButton.Active = true -- [สำคัญ] เปิดให้รับการกระทำของเมาส์เพื่อใช้ลาก
 			toggleButton.Parent = screenGui
+			
+			-- เรียกใช้ระบบลากปุ่ม
+			makeDraggable(toggleButton)
 			
 			aimbotEnabled = false
 
@@ -255,7 +294,7 @@ local espFolder = nil
 
 Tab:Toggle({
 	Title = "ESP Players",
-	Desc = "เปิด/ปิด ESP ผู้เล่น",
+	Desc = "เปิด/ปิด ESP ผู้เล่น (สีฟ้า)",
 	Value = false,
 	Callback = function(state)
 		if state then
@@ -340,6 +379,114 @@ Tab:Toggle({
 		else
 			if espLoop then espLoop:Disconnect() espLoop = nil end
 			if espFolder then espFolder:Destroy() espFolder = nil end
+		end
+	end
+})
+
+-- [เพิ่มใหม่] ฟังก์ชันที่ 6 ESP บอท (สีแดง)
+local botEspLoop = nil
+local botEspFolder = nil
+
+Tab:Toggle({
+	Title = "ESP บอท (Bot)",
+	Desc = "เปิด/ปิด ESP บอท/NPC (สีแดง)",
+	Value = false,
+	Callback = function(state)
+		if state then
+			if not botEspFolder then
+				botEspFolder = Instance.new("Folder")
+				botEspFolder.Name = "BotESPFolder"
+				pcall(function() botEspFolder.Parent = CoreGui end)
+				if not botEspFolder.Parent then botEspFolder.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+			end
+
+			botEspLoop = RunService.RenderStepped:Connect(function()
+				local myChar = getCustomCharacter(LocalPlayer)
+				local myPart = getTargetPart(myChar)
+				if not myPart then return end
+
+				-- สแกนหาสิ่งที่มีชีวิตใน Workspace
+				for _, model in ipairs(workspace:GetChildren()) do
+					if model:IsA("Model") and model ~= myChar then
+						local hum = model:FindFirstChildOfClass("Humanoid")
+						local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Head")
+						
+						-- ถ้ามีเลือด และยังไม่ตาย
+						if hum and root and hum.Health > 0 then
+							-- ตรวจสอบว่าเป็นผู้เล่นจริงไหม ถ้าเป็น nil แปลว่าเป็นบอท
+							local isRealPlayer = Players:GetPlayerFromCharacter(model)
+							if not isRealPlayer then
+								local espName = "Bot_" .. tostring(model:GetDebugId(10))
+								
+								local gui = botEspFolder:FindFirstChild(espName .. "_ESP")
+								if not gui then
+									gui = Instance.new("BillboardGui")
+									gui.Name = espName .. "_ESP"
+									gui.Size = UDim2.new(0, 200, 0, 50)
+									gui.StudsOffset = Vector3.new(0, 2, 0)
+									gui.AlwaysOnTop = true
+									gui.Parent = botEspFolder
+
+									local textLabel = Instance.new("TextLabel")
+									textLabel.Name = "InfoText"
+									textLabel.Size = UDim2.new(1, 0, 1, 0)
+									textLabel.BackgroundTransparency = 1
+									textLabel.TextColor3 = Color3.fromRGB(255, 50, 50) -- สีแดงสำหรับบอท
+									textLabel.TextStrokeTransparency = 0
+									textLabel.TextSize = 14
+									textLabel.Font = Enum.Font.SourceSansBold
+									textLabel.Parent = gui
+								end
+								
+								local hl = botEspFolder:FindFirstChild(espName .. "_HL")
+								if not hl then
+									hl = Instance.new("Highlight")
+									hl.Name = espName .. "_HL"
+									hl.FillColor = Color3.fromRGB(255, 50, 50) -- ไฮไลท์แดง
+									hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+									hl.FillTransparency = 0.5
+									hl.OutlineTransparency = 0
+									hl.Parent = botEspFolder
+								end
+								
+								if gui.Adornee ~= root then gui.Adornee = root end
+								if hl.Adornee ~= model then hl.Adornee = model end
+								
+								local dist = math.floor((myPart.Position - root.Position).Magnitude)
+								
+								if dist <= 2500 then
+									local txt = gui:FindFirstChild("InfoText")
+									if txt then
+										txt.Text = string.format("[BOT] | [%dm]", dist)
+										if dist > 1500 then txt.TextSize = 11
+										elseif dist > 500 then txt.TextSize = 12
+										else txt.TextSize = 14 end
+									end
+									
+									if not gui.Enabled then gui.Enabled = true end
+									if not hl.Enabled then hl.Enabled = true end
+								else
+									if gui.Enabled then gui.Enabled = false end
+									if hl.Enabled then hl.Enabled = false end
+								end
+							end
+						end
+					end
+				end
+				
+				-- ลบ ESP ของบอทที่ตายแล้วหรือถูกลบออกไปจากแมพ
+				for _, obj in ipairs(botEspFolder:GetChildren()) do
+					if obj:IsA("BillboardGui") or obj:IsA("Highlight") then
+						local adornee = obj.Adornee
+						if not adornee or not adornee.Parent or not adornee.Parent:FindFirstChildOfClass("Humanoid") or adornee.Parent:FindFirstChildOfClass("Humanoid").Health <= 0 then
+							obj:Destroy()
+						end
+					end
+				end
+			end)
+		else
+			if botEspLoop then botEspLoop:Disconnect() botEspLoop = nil end
+			if botEspFolder then botEspFolder:Destroy() botEspFolder = nil end
 		end
 	end
 })
