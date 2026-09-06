@@ -36,25 +36,21 @@ local function getTargetPart(char)
 		   char:FindFirstChildWhichIsA("BasePart", true)
 end
 
--- [เพิ่มใหม่] ฟังก์ชันสำหรับกรอง แอนตี้ชีท (ผีล่องหน)
+-- ฟังก์ชันสำหรับกรอง แอนตี้ชีท (ผีล่องหน)
 local function isValidTarget(char)
 	if not char then return false end
 	
-	-- 1. ตรวจสอบว่ามีเลือดและยังมีชีวิตอยู่ไหม
 	local hum = char:FindFirstChildOfClass("Humanoid")
 	if hum and hum.Health <= 0 then 
 		return false 
 	end
 	
-	-- 2. ตรวจสอบชิ้นส่วนว่าล่องหนหรือไม่ (แอนตี้ชีทมักจะ Transparency = 1)
 	local head = char:FindFirstChild("Head") or char:FindFirstChild("Head", true)
 	if head and head:IsA("BasePart") then
-		-- ถ้าระดับการล่องหนมากกว่าหรือเท่ากับ 0.9 (มองไม่เห็น) ให้ข้ามไปเลย
 		if head.Transparency >= 0.9 then
 			return false
 		end
 	else
-		-- กรณีไม่มีหัว ให้เช็คชิ้นส่วนอื่นๆ ในตัวที่ปกติไม่ล่องหน
 		local isVisible = false
 		for _, part in ipairs(char:GetChildren()) do
 			if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" and part.Transparency < 0.9 then
@@ -97,7 +93,6 @@ local function getBestTargetInFOV(myPos)
 			local char = getCustomCharacter(player)
 			local targetPart = getTargetPart(char)
 			
-			-- นำ isValidTarget() มาใช้เช็คตรงนี้ เพื่อป้องกันการเล็งบอทล่องหน
 			if char and targetPart and isValidTarget(char) and isVisible(targetPart) then
 				local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
 				if onScreen then
@@ -114,6 +109,47 @@ local function getBestTargetInFOV(myPos)
 		end
 	end
 	return closestTarget
+end
+
+-- ฟังก์ชันสร้างป้ายบอกระยะทางสำหรับสิ่งของ
+local function createOrUpdateObjectESP(folder, object, displayName, color, myPart)
+	if not object then return end
+	
+	local targetPart = object
+	if object:IsA("Model") then
+		targetPart = object.PrimaryPart or object:FindFirstChildWhichIsA("BasePart")
+	end
+	if not targetPart or not targetPart:IsA("BasePart") then return end
+
+	local espName = tostring(object:GetDebugId(10))
+	local gui = folder:FindFirstChild(espName)
+	
+	if not gui then
+		gui = Instance.new("BillboardGui")
+		gui.Name = espName
+		gui.Size = UDim2.new(0, 150, 0, 40)
+		gui.StudsOffset = Vector3.new(0, 1.5, 0)
+		gui.AlwaysOnTop = true
+		gui.Parent = folder
+
+		local textLabel = Instance.new("TextLabel")
+		textLabel.Name = "InfoText"
+		textLabel.Size = UDim2.new(1, 0, 1, 0)
+		textLabel.BackgroundTransparency = 1
+		textLabel.TextColor3 = color
+		textLabel.TextStrokeTransparency = 0.6
+		textLabel.TextSize = 13
+		textLabel.Font = Enum.Font.SourceSansBold
+		textLabel.Parent = gui
+	end
+	
+	if gui.Adornee ~= targetPart then gui.Adornee = targetPart end
+	
+	local dist = math.floor((myPart.Position - targetPart.Position).Magnitude)
+	local txt = gui:FindFirstChild("InfoText")
+	if txt then
+		txt.Text = string.format("%s\n[%dm]", displayName, dist)
+	end
 end
 
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
@@ -141,22 +177,18 @@ local Tab = Window:Tab({
 	Locked = false,
 })
 
-local aimbotHubEnabled = false
 local aimbotEnabled = false
 local aimbotLoop = nil
 local aimbotHotkey = nil
 local screenGui = nil
 
-Tab:Button({
+Tab:Toggle({
 	Title = "Aimbot",
 	Desc = "เปิด/ปิด Aimbot และ ปุ่มกลางจอ (กด X เพื่อเปิด/ปิด)",
-	Locked = false,
-	Callback = function()
-		aimbotHubEnabled = not aimbotHubEnabled
-		
-		if aimbotHubEnabled then
+	Value = false,
+	Callback = function(state)
+		if state then
 			if screenGui then screenGui:Destroy() end
-			
 			screenGui = Instance.new("ScreenGui")
 			screenGui.Name = "AimbotToggleGui"
 			screenGui.ResetOnSpawn = false
@@ -183,7 +215,6 @@ Tab:Button({
 			end
 
 			toggleButton.MouseButton1Click:Connect(toggleAimbotState)
-
 			aimbotHotkey = UserInputService.InputBegan:Connect(function(input, gameProcessed)
 				if not gameProcessed and input.KeyCode == Enum.KeyCode.X then
 					toggleAimbotState()
@@ -199,14 +230,11 @@ Tab:Button({
 							local targetPart = getBestTargetInFOV(myPart.Position)
 							if targetPart then
 								local targetVelocity = targetPart.AssemblyLinearVelocity
-								if not targetVelocity then
-									targetVelocity = Vector3.new(0, 0, 0)
-								end
+								if not targetVelocity then targetVelocity = Vector3.new(0, 0, 0) end
 								
 								local predictedPos = targetPart.Position + (targetVelocity * PREDICTION_AMOUNT)
 								local currentCamCF = Camera.CFrame
 								local targetCF = CFrame.new(currentCamCF.Position, predictedPos)
-								
 								Camera.CFrame = currentCamCF:Lerp(targetCF, AIM_SMOOTHNESS)
 							end
 						end
@@ -222,18 +250,15 @@ Tab:Button({
 	end
 })
 
-local espHubEnabled = false
 local espLoop = nil
 local espFolder = nil
 
-Tab:Button({
-	Title = "ESP",
-	Desc = "เปิด/ปิด ESP Players",
-	Locked = false,
-	Callback = function()
-		espHubEnabled = not espHubEnabled
-		
-		if espHubEnabled then
+Tab:Toggle({
+	Title = "ESP Players",
+	Desc = "เปิด/ปิด ESP ผู้เล่น",
+	Value = false,
+	Callback = function(state)
+		if state then
 			if not espFolder then
 				espFolder = Instance.new("Folder")
 				espFolder.Name = "SecureESPFolder"
@@ -251,7 +276,6 @@ Tab:Button({
 						local char = getCustomCharacter(player)
 						local targetPart = getTargetPart(char)
 						
-						-- นำ isValidTarget() มากรอง เพื่อไม่ให้แสดง ESP บนผีล่องหน
 						if char and targetPart and isValidTarget(char) then
 							local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
 							if not gui then
@@ -293,14 +317,9 @@ Tab:Button({
 								local txt = gui:FindFirstChild("InfoText")
 								if txt then
 									txt.Text = string.format("%s | [%dm]", player.Name, dist)
-									
-									if dist > 1500 then
-										txt.TextSize = 11
-									elseif dist > 500 then
-										txt.TextSize = 12
-									else
-										txt.TextSize = 14
-									end
+									if dist > 1500 then txt.TextSize = 11
+									elseif dist > 500 then txt.TextSize = 12
+									else txt.TextSize = 14 end
 								end
 								
 								if not gui.Enabled then gui.Enabled = true end
@@ -310,7 +329,6 @@ Tab:Button({
 								if hl.Enabled then hl.Enabled = false end
 							end
 						else
-							-- ปิด ESP ทิ้ง ถ้าเป้าหมายคือผีล่องหนหรือตายแล้ว
 							local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
 							local hl = espFolder:FindFirstChild(player.Name .. "_HL")
 							if gui and gui.Enabled then gui.Enabled = false end
@@ -321,25 +339,103 @@ Tab:Button({
 			end)
 		else
 			if espLoop then espLoop:Disconnect() espLoop = nil end
-			if espFolder then 
-				espFolder:Destroy() 
-				espFolder = nil 
-			end
+			if espFolder then espFolder:Destroy() espFolder = nil end
 		end
 	end
 })
 
-local nightVisionEnabled = false
+local exitLoop = nil
+local exitFolder = nil
+
+Tab:Toggle({
+	Title = "ESP ทางออก",
+	Desc = "แสดงจุดหลบหนี (Exit Locations)",
+	Value = false,
+	Callback = function(state)
+		if state then
+			if not exitFolder then
+				exitFolder = Instance.new("Folder")
+				exitFolder.Name = "ExitESPFolder"
+				pcall(function() exitFolder.Parent = CoreGui end)
+				if not exitFolder.Parent then exitFolder.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+			end
+
+			exitLoop = RunService.RenderStepped:Connect(function()
+				local myChar = getCustomCharacter(LocalPlayer)
+				local myPart = getTargetPart(myChar)
+				if not myPart then return end
+
+				local noCol = workspace:FindFirstChild("NoCollision")
+				if noCol then
+					local exitLocs = noCol:FindFirstChild("ExitLocations")
+					if exitLocs then
+						for _, v in ipairs(exitLocs:GetChildren()) do
+							if v.Name == "Exit" then
+								createOrUpdateObjectESP(exitFolder, v, "🚪 ทางออก", Color3.fromRGB(50, 255, 50), myPart)
+							end
+						end
+					end
+				end
+			end)
+		else
+			if exitLoop then exitLoop:Disconnect() exitLoop = nil end
+			if exitFolder then exitFolder:Destroy() exitFolder = nil end
+		end
+	end
+})
+
+local crateLoop = nil
+local crateFolder = nil
+
+Tab:Toggle({
+	Title = "ESP กล่องทหาร",
+	Desc = "แสดงกล่อง Military Crate",
+	Value = false,
+	Callback = function(state)
+		if state then
+			if not crateFolder then
+				crateFolder = Instance.new("Folder")
+				crateFolder.Name = "CrateESPFolder"
+				pcall(function() crateFolder.Parent = CoreGui end)
+				if not crateFolder.Parent then crateFolder.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+			end
+
+			crateLoop = RunService.RenderStepped:Connect(function()
+				local myChar = getCustomCharacter(LocalPlayer)
+				local myPart = getTargetPart(myChar)
+				if not myPart then return end
+
+				local containers = workspace:FindFirstChild("Containers")
+				if containers then
+					for _, v in ipairs(containers:GetChildren()) do
+						if v.Name == "MilitaryCrate" or v.Name == "Military Crate" then
+							createOrUpdateObjectESP(crateFolder, v, "📦 กล่องทหาร", Color3.fromRGB(255, 165, 0), myPart)
+						end
+					end
+				end
+				
+				-- เคลียร์ป้ายเก่าๆ กรณีของถูกเก็บหรือหายไป
+				for _, gui in ipairs(crateFolder:GetChildren()) do
+					if not gui.Adornee or not gui.Adornee.Parent then
+						gui:Destroy()
+					end
+				end
+			end)
+		else
+			if crateLoop then crateLoop:Disconnect() crateLoop = nil end
+			if crateFolder then crateFolder:Destroy() crateFolder = nil end
+		end
+	end
+})
+
 local lightingConnection = nil
 
-Tab:Button({
+Tab:Toggle({
 	Title = "Night Vision",
 	Desc = "เปิด/ปิด มองกลางคืน (สว่างทั้งแมพ)",
-	Locked = false,
-	Callback = function()
-		nightVisionEnabled = not nightVisionEnabled
-		
-		if nightVisionEnabled then
+	Value = false,
+	Callback = function(state)
+		if state then
 			local function applyNightVision()
 				Lighting.Brightness = 2
 				Lighting.ClockTime = 14
@@ -347,7 +443,6 @@ Tab:Button({
 				Lighting.GlobalShadows = false
 				Lighting.Ambient = Color3.fromRGB(255, 255, 255)
 			end
-			
 			applyNightVision()
 			lightingConnection = Lighting.Changed:Connect(applyNightVision)
 		else
@@ -355,7 +450,6 @@ Tab:Button({
 				lightingConnection:Disconnect()
 				lightingConnection = nil
 			end
-			
 			Lighting.Brightness = origLighting.Brightness
 			Lighting.ClockTime = origLighting.ClockTime
 			Lighting.FogEnd = origLighting.FogEnd
