@@ -36,6 +36,38 @@ local function getTargetPart(char)
 		   char:FindFirstChildWhichIsA("BasePart", true)
 end
 
+-- [เพิ่มใหม่] ฟังก์ชันสำหรับกรอง แอนตี้ชีท (ผีล่องหน)
+local function isValidTarget(char)
+	if not char then return false end
+	
+	-- 1. ตรวจสอบว่ามีเลือดและยังมีชีวิตอยู่ไหม
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if hum and hum.Health <= 0 then 
+		return false 
+	end
+	
+	-- 2. ตรวจสอบชิ้นส่วนว่าล่องหนหรือไม่ (แอนตี้ชีทมักจะ Transparency = 1)
+	local head = char:FindFirstChild("Head") or char:FindFirstChild("Head", true)
+	if head and head:IsA("BasePart") then
+		-- ถ้าระดับการล่องหนมากกว่าหรือเท่ากับ 0.9 (มองไม่เห็น) ให้ข้ามไปเลย
+		if head.Transparency >= 0.9 then
+			return false
+		end
+	else
+		-- กรณีไม่มีหัว ให้เช็คชิ้นส่วนอื่นๆ ในตัวที่ปกติไม่ล่องหน
+		local isVisible = false
+		for _, part in ipairs(char:GetChildren()) do
+			if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" and part.Transparency < 0.9 then
+				isVisible = true
+				break
+			end
+		end
+		if not isVisible then return false end
+	end
+	
+	return true
+end
+
 local function isVisible(targetPart)
 	local myChar = getCustomCharacter(LocalPlayer)
 	if not myChar then return false end
@@ -65,7 +97,8 @@ local function getBestTargetInFOV(myPos)
 			local char = getCustomCharacter(player)
 			local targetPart = getTargetPart(char)
 			
-			if char and targetPart and isVisible(targetPart) then
+			-- นำ isValidTarget() มาใช้เช็คตรงนี้ เพื่อป้องกันการเล็งบอทล่องหน
+			if char and targetPart and isValidTarget(char) and isVisible(targetPart) then
 				local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
 				if onScreen then
 					local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
@@ -218,7 +251,8 @@ Tab:Button({
 						local char = getCustomCharacter(player)
 						local targetPart = getTargetPart(char)
 						
-						if char and targetPart then
+						-- นำ isValidTarget() มากรอง เพื่อไม่ให้แสดง ESP บนผีล่องหน
+						if char and targetPart and isValidTarget(char) then
 							local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
 							if not gui then
 								gui = Instance.new("BillboardGui")
@@ -250,7 +284,6 @@ Tab:Button({
 								hl.Parent = espFolder
 							end
 							
-							-- แก้กระพริบ: เช็กก่อนว่า Adornee ถูกต้องหรือยัง ถ้าถูกแล้วห้ามเซ็ตซ้ำ
 							if gui.Adornee ~= targetPart then gui.Adornee = targetPart end
 							if hl.Adornee ~= char then hl.Adornee = char end
 							
@@ -270,15 +303,14 @@ Tab:Button({
 									end
 								end
 								
-								-- แก้กระพริบ: สั่งเปิดเฉพาะตอนที่มันปิดอยู่
 								if not gui.Enabled then gui.Enabled = true end
 								if not hl.Enabled then hl.Enabled = true end
 							else
-								-- สั่งปิดเฉพาะตอนที่มันเปิดอยู่
 								if gui.Enabled then gui.Enabled = false end
 								if hl.Enabled then hl.Enabled = false end
 							end
 						else
+							-- ปิด ESP ทิ้ง ถ้าเป้าหมายคือผีล่องหนหรือตายแล้ว
 							local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
 							local hl = espFolder:FindFirstChild(player.Name .. "_HL")
 							if gui and gui.Enabled then gui.Enabled = false end
