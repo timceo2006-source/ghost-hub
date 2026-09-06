@@ -343,14 +343,13 @@ Tab:Toggle({
 						local targetPart = getTargetPart(char)
 						
 						if char and targetPart and isValidTarget(char) then
-							-- ดึงค่า Humanoid สำหรับเลือด
 							local hum = char:FindFirstChildOfClass("Humanoid")
 							
 							local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
 							if not gui then
 								gui = Instance.new("BillboardGui")
 								gui.Name = player.Name .. "_ESP"
-								-- ขยายความสูงของ UI จาก 50 เป็น 75 เพื่อให้บรรทัดที่ 2 (เลือด) โผล่พ้นกรอบ
+								-- ขนาด UI ความสูง 75 ให้พอบรรทัดที่ 2
 								gui.Size = UDim2.new(0, 200, 0, 75)
 								gui.StudsOffset = Vector3.new(0, 2, 0)
 								gui.AlwaysOnTop = true
@@ -388,7 +387,8 @@ Tab:Toggle({
 								if txt then
 									local hpText = ""
 									if hum then
-										hpText = string.format("\n❤️ %d / %d", math.floor(hum.Health), math.floor(hum.MaxHealth))
+										-- ลบอีโมจิหัวใจออก ใช้ข้อความธรรมดาป้องกันบั๊กตัวรัน
+										hpText = string.format("\n[ %d / %d HP ]", math.floor(hum.Health), math.floor(hum.MaxHealth))
 									end
 									
 									txt.Text = string.format("%s | [%dm]%s", player.Name, dist, hpText)
@@ -461,7 +461,7 @@ Tab:Toggle({
 							if not gui then
 								gui = Instance.new("BillboardGui")
 								gui.Name = espName .. "_ESP"
-								-- ขยายขนาด UI เป็น 75 เช่นกัน
+								-- ขนาด UI ความสูง 75 
 								gui.Size = UDim2.new(0, 200, 0, 75)
 								gui.StudsOffset = Vector3.new(0, 2, 0)
 								gui.AlwaysOnTop = true
@@ -497,7 +497,8 @@ Tab:Toggle({
 							if dist <= 2500 then
 								local txt = gui:FindFirstChild("InfoText")
 								if txt then
-									local hpText = string.format("\n❤️ %d / %d", math.floor(hum.Health), math.floor(hum.MaxHealth))
+									-- ลบอีโมจิออกป้องกันแครช
+									local hpText = string.format("\n[ %d / %d HP ]", math.floor(hum.Health), math.floor(hum.MaxHealth))
 									txt.Text = string.format("[%s] | [%dm]%s", model.Name, dist, hpText)
 									
 									if dist > 1500 then txt.TextSize = 11
@@ -608,4 +609,4 @@ Tab:Toggle({
 				end
 				
 				for _, gui in ipairs(crateFolder:GetChildren()) do
-					if not gui.Adornee or not gu
+					if 
