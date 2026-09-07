@@ -1,18 +1,17 @@
-task.wait(2)
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local Lighting = game:GetService("Lighting")
+local Stats = game:GetService("Stats") -- เพิ่ม Stats สำหรับดึงปิง
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- [ตั้งค่าความแม่นยำ Aimbot]
+-- [ ตั้งค่า AIMBOT (ปรับแต่งได้ที่นี่) ] --
 local FOV_RADIUS = 150
 local AIM_SMOOTHNESS = 1
-local PROJECTILE_SPEED = 1800 -- ความเร็วกระสุนโดยเฉลี่ยของปืนในเกม (ปรับขึ้นถ้ายิงดักหน้าเยอะไป ปรับลงถ้ายิงตามหลัง)
-local BULLET_DROP = 1.2 -- ค่าเผื่อกระสุนตก (ยิงไกลเป้าจะเชิดขึ้นเล็กน้อย)
+local BULLET_SPEED = 2000 -- ความเร็วกระสุน (ถ้าเกมยิงปุ๊บโดนปั๊บให้ใส่ math.huge)
+local BULLET_DROP = false -- เปิด/ปิด การคำนวณเผื่อระยะกระสุนตก (true/false)
 
 local origLighting = {
 	Brightness = Lighting.Brightness,
@@ -22,6 +21,7 @@ local origLighting = {
 	Ambient = Lighting.Ambient
 }
 
+-- ฟังก์ชันสำหรับทำให้ปุ่ม UI ลากไปมาได้
 local function makeDraggable(gui)
 	local dragging
 	local dragInput
@@ -69,12 +69,13 @@ end
 
 local function getTargetPart(char)
 	if not char then return nil end
-	-- ลำดับความสำคัญ เล็งหัวก่อนเสมอ
-	return char:FindFirstChild("Head", true) or 
-		   char:FindFirstChild("HumanoidRootPart", true) or 
+	-- แนะนำให้เล็ง HumanoidRootPart เป็นหลัก จะยิงโดนง่ายกว่า Head ครับ
+	return char:FindFirstChild("HumanoidRootPart", true) or 
+	       char:FindFirstChild("Head", true) or 
 		   char:FindFirstChildWhichIsA("BasePart", true)
 end
 
+-- ฟังก์ชันสำหรับกรอง แอนตี้ชีท (ผีล่องหน)
 local function isValidTarget(char)
 	if not char then return false end
 	
@@ -121,10 +122,9 @@ local function isVisible(targetPart)
 	return result == nil
 end
 
--- [อัปเดต] เลือกล็อคคนที่ใกล้ "เป้าเล็งกลางจอ" ที่สุด แทนการล็อคคนที่ใกล้ตัวเราที่สุด
-local function getBestTargetInFOV()
+local function getBestTargetInFOV(myPos)
 	local closestTarget = nil
-	local shortestScreenDist = math.huge
+	local shortestDist = math.huge
 	local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 	
 	for _, player in ipairs(Players:GetPlayers()) do
@@ -137,8 +137,9 @@ local function getBestTargetInFOV()
 				if onScreen then
 					local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
 					if screenDist <= FOV_RADIUS then
-						if screenDist < shortestScreenDist then
-							shortestScreenDist = screenDist
+						local dist = (myPos - targetPart.Position).Magnitude
+						if dist < shortestDist then
+							shortestDist = dist
 							closestTarget = targetPart
 						end
 					end
@@ -149,6 +150,7 @@ local function getBestTargetInFOV()
 	return closestTarget
 end
 
+-- ฟังก์ชันสร้างป้ายบอกระยะทางสำหรับสิ่งของ
 local function createOrUpdateObjectESP(folder, object, displayName, color, myPart)
 	if not object then return end
 	
@@ -189,24 +191,8 @@ local function createOrUpdateObjectESP(folder, object, displayName, color, myPar
 	end
 end
 
-print("กำลังดาวน์โหลดข้อมูล UI...")
-local success, uiData = pcall(function()
-	return game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua")
-end)
-
-if not success then
-	warn("ดึงข้อมูล UI ไม่สำเร็จ กรุณาเช็คอินเทอร์เน็ต หรือลองรันใหม่: " .. tostring(uiData))
-	return
-end
-
-local loadFunc, loadErr = loadstring(uiData)
-if not loadFunc then
-	warn("แปลงโค้ด UI ไม่สำเร็จ (Executor อาจจะไม่รองรับ): " .. tostring(loadErr))
-	return
-end
-
-local WindUI = loadFunc()
-print("โหลด UI สำเร็จ!")
+-- ใช้ลิงก์โหลดแบบเก่าของคุณที่รันผ่านแน่นอน
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Window = WindUI:CreateWindow({
 	Title = "Ghost Hub",
@@ -284,20 +270,34 @@ Tab:Toggle({
 						local myChar = getCustomCharacter(LocalPlayer)
 						local myPart = getTargetPart(myChar)
 						if myPart then
-							local targetPart = getBestTargetInFOV() -- เรียกใช้ระบบใหม่ที่หาจากเป้าเล็ง
+							local targetPart = getBestTargetInFOV(myPart.Position)
 							if targetPart then
 								local targetVelocity = targetPart.AssemblyLinearVelocity
 								if not targetVelocity then targetVelocity = Vector3.new(0, 0, 0) end
 								
-								-- [อัปเดต] ระบบคำนวณการดักหน้าแบบ Dynamic (แปรผันตามระยะทางและกระสุนตก)
-								local distToTarget = (Camera.CFrame.Position - targetPart.Position).Magnitude
-								local travelTime = distToTarget / PROJECTILE_SPEED
+								-- คำนวณระยะทางจากเราไปหาเป้าหมาย
+								local distance = (Camera.CFrame.Position - targetPart.Position).Magnitude
 								
-								-- คำนวณเผื่อกระสุนตก
-								local dropComp = Vector3.new(0, (travelTime * BULLET_DROP * 10), 0)
+								-- ดึงค่า Ping แบบปลอดภัยไม่ให้บัค (ถ้าดึงไม่ได้จะใช้ค่าเฉลี่ย 0.05 แทน)
+								local ping = 0.05 
+								pcall(function()
+									local statsPing = Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
+									if statsPing and statsPing > 0 then
+										ping = statsPing / 1000
+									end
+								end)
 								
-								-- จุดที่ต้องยิง = ตำแหน่งเป้า + (ทิศทางวิ่ง x เวลาเดินทางกระสุน) + ยกเป้าขึ้นเผื่อกระสุนตก
-								local predictedPos = targetPart.Position + (targetVelocity * travelTime) + dropComp
+								-- คำนวณเวลาที่กระสุนจะเดินทางไปถึงเป้าหมาย
+								local timeToTarget = (distance / BULLET_SPEED) + ping
+								
+								-- คำนวณระยะกระสุนตก
+								local dropCompensation = Vector3.new(0, 0, 0)
+								if BULLET_DROP then
+									dropCompensation = Vector3.new(0, 0.5 * workspace.Gravity * (timeToTarget ^ 2), 0)
+								end
+								
+								-- คาดเดาตำแหน่งเป้าหมายแบบเรียลไทม์ (Dynamic Prediction)
+								local predictedPos = targetPart.Position + (targetVelocity * timeToTarget) + dropCompensation
 								
 								local currentCamCF = Camera.CFrame
 								local targetCF = CFrame.new(currentCamCF.Position, predictedPos)
@@ -582,19 +582,12 @@ Tab:Toggle({
 				local containers = workspace:FindFirstChild("Containers")
 				if containers then
 					for _, v in ipairs(containers:GetChildren()) do
-						-- กล่อง Military ทั่วไป (ส้ม)
 						if v.Name == "MilitaryCrate" or v.Name == "Military Crate" then
 							createOrUpdateObjectESP(crateFolder, v, "📦 กล่องทหาร", Color3.fromRGB(255, 165, 0), myPart)
-						
-						-- กล่อง Small Military Box (เขียว)
 						elseif v.Name == "Small Military Box" or v.Name == "SmallMilitaryBox" then
 							createOrUpdateObjectESP(crateFolder, v, "📦 กล่องอาวุธเล็ก", Color3.fromRGB(50, 255, 50), myPart) 
-						
-						-- กล่อง Large Military Box (ทอง)
 						elseif v.Name == "Large Military Box" or v.Name == "LargeMilitaryBox" then
 							createOrUpdateObjectESP(crateFolder, v, "📦 กล่องอาวุธใหญ่", Color3.fromRGB(255, 215, 0), myPart)
-
-						-- กล่อง Large ABPOPA Box (ม่วง)
 						elseif v.Name == "Large ABPOPA Box" or v.Name == "LargeABPOPABox" then
 							createOrUpdateObjectESP(crateFolder, v, "📦 กล่อง ABPOPA ใหญ่", Color3.fromRGB(180, 50, 255), myPart)
 						end
@@ -607,5 +600,4 @@ Tab:Toggle({
 					end
 				end
 			end)
-		else
-			if crateLoop then crateLoop:Di
+		e
