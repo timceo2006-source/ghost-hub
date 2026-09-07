@@ -1,3 +1,5 @@
+task.wait(2)
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
@@ -6,9 +8,11 @@ local Lighting = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
+-- [ตั้งค่าความแม่นยำ Aimbot]
 local FOV_RADIUS = 150
-local PREDICTION_AMOUNT = 0.12 
 local AIM_SMOOTHNESS = 1
+local PROJECTILE_SPEED = 1800 -- ความเร็วกระสุนโดยเฉลี่ยของปืนในเกม (ปรับขึ้นถ้ายิงดักหน้าเยอะไป ปรับลงถ้ายิงตามหลัง)
+local BULLET_DROP = 1.2 -- ค่าเผื่อกระสุนตก (ยิงไกลเป้าจะเชิดขึ้นเล็กน้อย)
 
 local origLighting = {
 	Brightness = Lighting.Brightness,
@@ -18,7 +22,6 @@ local origLighting = {
 	Ambient = Lighting.Ambient
 }
 
--- ฟังก์ชันสำหรับทำให้ปุ่ม UI ลากไปมาได้
 local function makeDraggable(gui)
 	local dragging
 	local dragInput
@@ -66,12 +69,12 @@ end
 
 local function getTargetPart(char)
 	if not char then return nil end
+	-- ลำดับความสำคัญ เล็งหัวก่อนเสมอ
 	return char:FindFirstChild("Head", true) or 
 		   char:FindFirstChild("HumanoidRootPart", true) or 
 		   char:FindFirstChildWhichIsA("BasePart", true)
 end
 
--- ฟังก์ชันสำหรับกรอง แอนตี้ชีท (ผีล่องหน)
 local function isValidTarget(char)
 	if not char then return false end
 	
@@ -118,9 +121,10 @@ local function isVisible(targetPart)
 	return result == nil
 end
 
-local function getBestTargetInFOV(myPos)
+-- [อัปเดต] เลือกล็อคคนที่ใกล้ "เป้าเล็งกลางจอ" ที่สุด แทนการล็อคคนที่ใกล้ตัวเราที่สุด
+local function getBestTargetInFOV()
 	local closestTarget = nil
-	local shortestDist = math.huge
+	local shortestScreenDist = math.huge
 	local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 	
 	for _, player in ipairs(Players:GetPlayers()) do
@@ -133,9 +137,8 @@ local function getBestTargetInFOV(myPos)
 				if onScreen then
 					local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
 					if screenDist <= FOV_RADIUS then
-						local dist = (myPos - targetPart.Position).Magnitude
-						if dist < shortestDist then
-							shortestDist = dist
+						if screenDist < shortestScreenDist then
+							shortestScreenDist = screenDist
 							closestTarget = targetPart
 						end
 					end
@@ -146,7 +149,6 @@ local function getBestTargetInFOV(myPos)
 	return closestTarget
 end
 
--- ฟังก์ชันสร้างป้ายบอกระยะทางสำหรับสิ่งของ
 local function createOrUpdateObjectESP(folder, object, displayName, color, myPart)
 	if not object then return end
 	
@@ -187,7 +189,24 @@ local function createOrUpdateObjectESP(folder, object, displayName, color, myPar
 	end
 end
 
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+print("กำลังดาวน์โหลดข้อมูล UI...")
+local success, uiData = pcall(function()
+	return game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua")
+end)
+
+if not success then
+	warn("ดึงข้อมูล UI ไม่สำเร็จ กรุณาเช็คอินเทอร์เน็ต หรือลองรันใหม่: " .. tostring(uiData))
+	return
+end
+
+local loadFunc, loadErr = loadstring(uiData)
+if not loadFunc then
+	warn("แปลงโค้ด UI ไม่สำเร็จ (Executor อาจจะไม่รองรับ): " .. tostring(loadErr))
+	return
+end
+
+local WindUI = loadFunc()
+print("โหลด UI สำเร็จ!")
 
 local Window = WindUI:CreateWindow({
 	Title = "Ghost Hub",
@@ -265,12 +284,21 @@ Tab:Toggle({
 						local myChar = getCustomCharacter(LocalPlayer)
 						local myPart = getTargetPart(myChar)
 						if myPart then
-							local targetPart = getBestTargetInFOV(myPart.Position)
+							local targetPart = getBestTargetInFOV() -- เรียกใช้ระบบใหม่ที่หาจากเป้าเล็ง
 							if targetPart then
 								local targetVelocity = targetPart.AssemblyLinearVelocity
 								if not targetVelocity then targetVelocity = Vector3.new(0, 0, 0) end
 								
-								local predictedPos = targetPart.Position + (targetVelocity * PREDICTION_AMOUNT)
+								-- [อัปเดต] ระบบคำนวณการดักหน้าแบบ Dynamic (แปรผันตามระยะทางและกระสุนตก)
+								local distToTarget = (Camera.CFrame.Position - targetPart.Position).Magnitude
+								local travelTime = distToTarget / PROJECTILE_SPEED
+								
+								-- คำนวณเผื่อกระสุนตก
+								local dropComp = Vector3.new(0, (travelTime * BULLET_DROP * 10), 0)
+								
+								-- จุดที่ต้องยิง = ตำแหน่งเป้า + (ทิศทางวิ่ง x เวลาเดินทางกระสุน) + ยกเป้าขึ้นเผื่อกระสุนตก
+								local predictedPos = targetPart.Position + (targetVelocity * travelTime) + dropComp
+								
 								local currentCamCF = Camera.CFrame
 								local targetCF = CFrame.new(currentCamCF.Position, predictedPos)
 								Camera.CFrame = currentCamCF:Lerp(targetCF, AIM_SMOOTHNESS)
@@ -354,7 +382,6 @@ Tab:Toggle({
 							if dist <= 2500 then
 								local txt = gui:FindFirstChild("InfoText")
 								if txt then
-									-- ดึงเลือดผู้เล่นมาแสดงต่อท้าย
 									local hum = char:FindFirstChildOfClass("Humanoid")
 									local hp = hum and math.floor(hum.Health) or 0
 									txt.Text = string.format("%s | [%dm] | %d HP", player.Name, dist, hp)
@@ -456,7 +483,6 @@ Tab:Toggle({
 								if dist <= 2500 then
 									local txt = gui:FindFirstChild("InfoText")
 									if txt then
-										-- ดึงเลือดบอทมาแสดงต่อท้าย
 										local hp = math.floor(hum.Health)
 										txt.Text = string.format("[BOT] | [%dm] | %d HP", dist, hp)
 										
@@ -582,39 +608,4 @@ Tab:Toggle({
 				end
 			end)
 		else
-			if crateLoop then crateLoop:Disconnect() crateLoop = nil end
-			if crateFolder then crateFolder:Destroy() crateFolder = nil end
-		end
-	end
-})
-
-local lightingConnection = nil
-
-Tab:Toggle({
-	Title = "Night Vision",
-	Desc = "เปิด/ปิด มองกลางคืน (สว่างทั้งแมพ)",
-	Value = false,
-	Callback = function(state)
-		if state then
-			local function applyNightVision()
-				Lighting.Brightness = 2
-				Lighting.ClockTime = 14
-				Lighting.FogEnd = 100000
-				Lighting.GlobalShadows = false
-				Lighting.Ambient = Color3.fromRGB(255, 255, 255)
-			end
-			applyNightVision()
-			lightingConnection = Lighting.Changed:Connect(applyNightVision)
-		else
-			if lightingConnection then
-				lightingConnection:Disconnect()
-				lightingConnection = nil
-			end
-			Lighting.Brightness = origLighting.Brightness
-			Lighting.ClockTime = origLighting.ClockTime
-			Lighting.FogEnd = origLighting.FogEnd
-			Lighting.GlobalShadows = origLighting.GlobalShadows
-			Lighting.Ambient = origLighting.Ambient
-		end
-	end
-})
+			if crateLoop then crateLoop:Di
