@@ -25,9 +25,7 @@ local function makeDraggable(gui)
 			dragStart = input.Position
 			startPos = gui.Position
 			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
+				if input.UserInputState == Enum.UserInputState.End then dragging = false end
 			end)
 		end
 	end)
@@ -79,8 +77,6 @@ end
 local function isVisible(targetPart)
 	local myChar = getCustomCharacter(LocalPlayer)
 	if not myChar then return false end
-	local myPart = getTargetPart(myChar)
-	if not myPart then return false end
 	local origin = Camera.CFrame.Position
 	local destination = targetPart.Position
 	local rayParams = RaycastParams.new()
@@ -99,15 +95,18 @@ local function getBestTargetInFOV(myPos)
 		if player ~= LocalPlayer then
 			local char = getCustomCharacter(player)
 			local targetPart = getTargetPart(char)
-			if char and targetPart and isValidTarget(char) and isVisible(targetPart) then
+			if char and targetPart and isValidTarget(char) then
 				local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
 				if onScreen then
 					local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
 					if screenDist <= FOV_RADIUS then
-						local dist = (myPos - targetPart.Position).Magnitude
-						if dist < shortestDist then
-							shortestDist = dist
-							closestTarget = targetPart
+						-- เช็คกำแพงเฉพาะคนที่อยู่ใน FOV จะได้ไม่แลค
+						if isVisible(targetPart) then 
+							local dist = (myPos - targetPart.Position).Magnitude
+							if dist < shortestDist then
+								shortestDist = dist
+								closestTarget = targetPart
+							end
 						end
 					end
 				end
@@ -169,13 +168,15 @@ local Window = WindUI:CreateWindow({
 
 local Tab = Window:Tab({ Title = "Main", Locked = false })
 
-local aimbotEnabled, aimbotLoop, aimbotHotkey, screenGui = false, nil, nil, nil
+-- ================= AIMBOT =================
+local aimbotEnabled, aimbotLoop, screenGui = false, nil, nil
 
 Tab:Toggle({
 	Title = "Aimbot",
-	Desc = "ON/OFF Aimbot",
+	Desc = "ON/OFF Aimbot (สมูทขึ้น ไม่กินสเปค)",
 	Value = false,
 	Callback = function(state)
+		aimbotEnabled = state
 		if state then
 			if screenGui then screenGui:Destroy() end
 			screenGui = Instance.new("ScreenGui")
@@ -183,63 +184,61 @@ Tab:Toggle({
 			screenGui.ResetOnSpawn = false
 			pcall(function() screenGui.Parent = CoreGui end)
 			if not screenGui.Parent then screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+			
 			local toggleButton = Instance.new("TextButton")
 			toggleButton.Size = UDim2.new(0, 100, 0, 30)
 			toggleButton.Position = UDim2.new(0.5, -50, 0, 10)
 			toggleButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 			toggleButton.BorderColor3 = Color3.fromRGB(0, 255, 255)
-			toggleButton.TextColor3 = Color3.fromRGB(255, 50, 50)
+			toggleButton.TextColor3 = Color3.fromRGB(50, 255, 50)
 			toggleButton.TextSize = 13
 			toggleButton.Font = Enum.Font.SourceSansBold
-			toggleButton.Text = "AIM: OFF"
-			toggleButton.Active = true
+			toggleButton.Text = "AIM: ON"
 			toggleButton.Parent = screenGui
 			makeDraggable(toggleButton)
-			aimbotEnabled = false
-			local function toggleAimbotState()
-				aimbotEnabled = not aimbotEnabled
-				toggleButton.TextColor3 = aimbotEnabled and Color3.fromRGB(50, 255, 50) or Color3.fromRGB(255, 50, 50)
-				toggleButton.Text = aimbotEnabled and "AIM: ON" or "AIM: OFF"
-			end
-			toggleButton.MouseButton1Click:Connect(toggleAimbotState)
-			aimbotHotkey = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-				if not gameProcessed and input.KeyCode == Enum.KeyCode.X then toggleAimbotState() end
+
+			local aimActive = true
+			toggleButton.MouseButton1Click:Connect(function()
+				aimActive = not aimActive
+				toggleButton.TextColor3 = aimActive and Color3.fromRGB(50, 255, 50) or Color3.fromRGB(255, 50, 50)
+				toggleButton.Text = aimActive and "AIM: ON" or "AIM: OFF"
 			end)
+
 			if not aimbotLoop then
 				aimbotLoop = RunService.RenderStepped:Connect(function()
-					if aimbotEnabled then
+					if aimbotEnabled and aimActive then
 						local myChar = getCustomCharacter(LocalPlayer)
 						local myPart = getTargetPart(myChar)
 						if myPart then
 							local targetPart = getBestTargetInFOV(myPart.Position)
 							if targetPart then
-								local targetVelocity = targetPart.AssemblyLinearVelocity
-								if not targetVelocity then targetVelocity = Vector3.new(0, 0, 0) end
+								local targetVelocity = targetPart.AssemblyLinearVelocity or Vector3.new(0, 0, 0)
 								local dist = (Camera.CFrame.Position - targetPart.Position).Magnitude
 								local dynPred = (dist / 2000) + 0.05
 								local predictedPos = targetPart.Position + (targetVelocity * dynPred)
-								local currentCamCF = Camera.CFrame
-								Camera.CFrame = currentCamCF:Lerp(CFrame.new(currentCamCF.Position, predictedPos), AIM_SMOOTHNESS)
+								Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, predictedPos), AIM_SMOOTHNESS)
 							end
 						end
 					end
 				end)
 			end
 		else
-			aimbotEnabled = false
 			if screenGui then screenGui:Destroy() screenGui = nil end
 			if aimbotLoop then aimbotLoop:Disconnect() aimbotLoop = nil end
-			if aimbotHotkey then aimbotHotkey:Disconnect() aimbotHotkey = nil end
 		end
 	end
 })
 
-local espLoop, espFolder = nil, nil
+-- ================= ESP PLAYERS =================
+local espPlayerActive = false
+local espFolder = nil
+
 Tab:Toggle({
 	Title = "ESP Players",
-	Desc = "ON/OFF Players ESP",
+	Desc = "เปิด/ปิด ESP ผู้เล่น (อัปเดตแบบลื่นไหล)",
 	Value = false,
 	Callback = function(state)
+		espPlayerActive = state
 		if state then
 			if not espFolder then
 				espFolder = Instance.new("Folder")
@@ -247,84 +246,91 @@ Tab:Toggle({
 				pcall(function() espFolder.Parent = CoreGui end)
 				if not espFolder.Parent then espFolder.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 			end
-			espLoop = RunService.RenderStepped:Connect(function()
-				local myChar = getCustomCharacter(LocalPlayer)
-				local myPart = getTargetPart(myChar)
-				if not myPart then return end
-				for _, player in ipairs(Players:GetPlayers()) do
-					if player ~= LocalPlayer then
-						local char = getCustomCharacter(player)
-						local targetPart = getTargetPart(char)
-						if char and targetPart and isValidTarget(char) then
-							local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
-							if not gui then
-								gui = Instance.new("BillboardGui")
-								gui.Name = player.Name .. "_ESP"
-								gui.Size = UDim2.new(0, 200, 0, 50)
-								gui.StudsOffset = Vector3.new(0, 2, 0)
-								gui.AlwaysOnTop = true
-								gui.Parent = espFolder
-								local textLabel = Instance.new("TextLabel")
-								textLabel.Name = "InfoText"
-								textLabel.Size = UDim2.new(1, 0, 1, 0)
-								textLabel.BackgroundTransparency = 1
-								textLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-								textLabel.TextStrokeTransparency = 0
-								textLabel.TextSize = 14
-								textLabel.Font = Enum.Font.SourceSansBold
-								textLabel.Parent = gui
-							end
-							local hl = espFolder:FindFirstChild(player.Name .. "_HL")
-							if not hl then
-								hl = Instance.new("Highlight")
-								hl.Name = player.Name .. "_HL"
-								hl.FillColor = Color3.fromRGB(0, 255, 255)
-								hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-								hl.FillTransparency = 0.5
-								hl.OutlineTransparency = 0
-								hl.Parent = espFolder
-							end
-							if gui.Adornee ~= targetPart then gui.Adornee = targetPart end
-							if hl.Adornee ~= char then hl.Adornee = char end
-							local dist = math.floor((myPart.Position - targetPart.Position).Magnitude)
-							if dist <= 2500 then
-								local txt = gui:FindFirstChild("InfoText")
-								if txt then
-									local hum = char:FindFirstChildOfClass("Humanoid")
-									local hp = hum and math.floor(hum.Health) or 0
-									txt.Text = string.format("%s | [%dm] | %d HP", player.Name, dist, hp)
-									if dist > 1500 then txt.TextSize = 11
-									elseif dist > 500 then txt.TextSize = 12
-									else txt.TextSize = 14 end
+			
+			-- ใช้ task.spawn แทน RenderStepped ลดแลค!
+			task.spawn(function()
+				while espPlayerActive do
+					local myChar = getCustomCharacter(LocalPlayer)
+					local myPart = getTargetPart(myChar)
+					
+					if myPart then
+						for _, player in ipairs(Players:GetPlayers()) do
+							if player ~= LocalPlayer then
+								local char = getCustomCharacter(player)
+								local targetPart = getTargetPart(char)
+								
+								if char and targetPart and isValidTarget(char) then
+									local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
+									if not gui then
+										gui = Instance.new("BillboardGui", espFolder)
+										gui.Name = player.Name .. "_ESP"
+										gui.Size = UDim2.new(0, 200, 0, 50)
+										gui.StudsOffset = Vector3.new(0, 2, 0)
+										gui.AlwaysOnTop = true
+										local txt = Instance.new("TextLabel", gui)
+										txt.Name = "InfoText"
+										txt.Size = UDim2.new(1, 0, 1, 0)
+										txt.BackgroundTransparency = 1
+										txt.TextColor3 = Color3.fromRGB(0, 255, 255)
+										txt.TextStrokeTransparency = 0
+										txt.Font = Enum.Font.SourceSansBold
+									end
+									
+									local hl = espFolder:FindFirstChild(player.Name .. "_HL")
+									if not hl then
+										hl = Instance.new("Highlight", espFolder)
+										hl.Name = player.Name .. "_HL"
+										hl.FillColor = Color3.fromRGB(0, 255, 255)
+										hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+										hl.FillTransparency = 0.5
+									end
+									
+									if gui.Adornee ~= targetPart then gui.Adornee = targetPart end
+									if hl.Adornee ~= char then hl.Adornee = char end
+									
+									local dist = math.floor((myPart.Position - targetPart.Position).Magnitude)
+									if dist <= 3000 then
+										local txt = gui:FindFirstChild("InfoText")
+										if txt then
+											local hum = char:FindFirstChildOfClass("Humanoid")
+											local hp = hum and math.floor(hum.Health) or 0
+											txt.Text = string.format("%s | [%dm] | %d HP", player.Name, dist, hp)
+											txt.TextSize = dist > 1500 and 11 or (dist > 500 and 12 or 14)
+										end
+										gui.Enabled = true
+										hl.Enabled = true
+									else
+										gui.Enabled = false
+										hl.Enabled = false
+									end
+								else
+									local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
+									local hl = espFolder:FindFirstChild(player.Name .. "_HL")
+									if gui then gui.Enabled = false end
+									if hl then hl.Enabled = false end
 								end
-								if not gui.Enabled then gui.Enabled = true end
-								if not hl.Enabled then hl.Enabled = true end
-							else
-								if gui.Enabled then gui.Enabled = false end
-								if hl.Enabled then hl.Enabled = false end
 							end
-						else
-							local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
-							local hl = espFolder:FindFirstChild(player.Name .. "_HL")
-							if gui and gui.Enabled then gui.Enabled = false end
-							if hl and hl.Enabled then hl.Enabled = false end
 						end
 					end
+					task.wait(0.1) -- หน่วงเวลา 0.1 วิ (อัปเดต 10 เฟรม/วิ) ช่วยให้ไม่แลค
 				end
 			end)
 		else
-			if espLoop then espLoop:Disconnect() espLoop = nil end
 			if espFolder then espFolder:Destroy() espFolder = nil end
 		end
 	end
 })
 
-local botEspLoop, botEspFolder = nil, nil
+-- ================= ESP BOT =================
+local espBotActive = false
+local botEspFolder = nil
+
 Tab:Toggle({
 	Title = "ESP บอท (Bot)",
-	Desc = "ON/OFF Bot ESP",
+	Desc = "เปิด/ปิด ESP บอท (ปรับสแกนให้ไม่แลค)",
 	Value = false,
 	Callback = function(state)
+		espBotActive = state
 		if state then
 			if not botEspFolder then
 				botEspFolder = Instance.new("Folder")
@@ -332,170 +338,165 @@ Tab:Toggle({
 				pcall(function() botEspFolder.Parent = CoreGui end)
 				if not botEspFolder.Parent then botEspFolder.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 			end
-			botEspLoop = RunService.RenderStepped:Connect(function()
-				local myChar = getCustomCharacter(LocalPlayer)
-				local myPart = getTargetPart(myChar)
-				if not myPart then return end
-				for _, model in ipairs(workspace:GetChildren()) do
-					if model:IsA("Model") and model ~= myChar then
-						local hum = model:FindFirstChildOfClass("Humanoid")
-						local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Head")
-						if hum and root and hum.Health > 0 then
-							local isRealPlayer = Players:GetPlayerFromCharacter(model)
-							if not isRealPlayer then
-								local espName = "Bot_" .. tostring(model:GetDebugId(10))
-								local gui = botEspFolder:FindFirstChild(espName .. "_ESP")
-								if not gui then
-									gui = Instance.new("BillboardGui")
-									gui.Name = espName .. "_ESP"
-									gui.Size = UDim2.new(0, 200, 0, 50)
-									gui.StudsOffset = Vector3.new(0, 2, 0)
-									gui.AlwaysOnTop = true
-									gui.Parent = botEspFolder
-									local textLabel = Instance.new("TextLabel")
-									textLabel.Name = "InfoText"
-									textLabel.Size = UDim2.new(1, 0, 1, 0)
-									textLabel.BackgroundTransparency = 1
-									textLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
-									textLabel.TextStrokeTransparency = 0
-									textLabel.TextSize = 14
-									textLabel.Font = Enum.Font.SourceSansBold
-									textLabel.Parent = gui
-								end
-								local hl = botEspFolder:FindFirstChild(espName .. "_HL")
-								if not hl then
-									hl = Instance.new("Highlight")
-									hl.Name = espName .. "_HL"
-									hl.FillColor = Color3.fromRGB(255, 50, 50)
-									hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-									hl.FillTransparency = 0.5
-									hl.OutlineTransparency = 0
-									hl.Parent = botEspFolder
-								end
-								if gui.Adornee ~= root then gui.Adornee = root end
-								if hl.Adornee ~= model then hl.Adornee = model end
-								local dist = math.floor((myPart.Position - root.Position).Magnitude)
-								if dist <= 2500 then
-									local txt = gui:FindFirstChild("InfoText")
-									if txt then
-										local hp = math.floor(hum.Health)
-										txt.Text = string.format("[BOT] | [%dm] | %d HP", dist, hp)
-										if dist > 1500 then txt.TextSize = 11
-										elseif dist > 500 then txt.TextSize = 12
-										else txt.TextSize = 14 end
+			
+			task.spawn(function()
+				while espBotActive do
+					local myChar = getCustomCharacter(LocalPlayer)
+					local myPart = getTargetPart(myChar)
+					
+					if myPart then
+						for _, model in ipairs(workspace:GetChildren()) do
+							if model:IsA("Model") and model ~= myChar then
+								local hum = model:FindFirstChildOfClass("Humanoid")
+								local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Head")
+								
+								if hum and root and hum.Health > 0 then
+									if not Players:GetPlayerFromCharacter(model) then
+										local espName = "Bot_" .. tostring(model:GetDebugId(10))
+										local gui = botEspFolder:FindFirstChild(espName .. "_ESP")
+										
+										if not gui then
+											gui = Instance.new("BillboardGui", botEspFolder)
+											gui.Name = espName .. "_ESP"
+											gui.Size = UDim2.new(0, 200, 0, 50)
+											gui.StudsOffset = Vector3.new(0, 2, 0)
+											gui.AlwaysOnTop = true
+											local txt = Instance.new("TextLabel", gui)
+											txt.Name = "InfoText"
+											txt.Size = UDim2.new(1, 0, 1, 0)
+											txt.BackgroundTransparency = 1
+											txt.TextColor3 = Color3.fromRGB(255, 50, 50)
+											txt.Font = Enum.Font.SourceSansBold
+										end
+										
+										if gui.Adornee ~= root then gui.Adornee = root end
+										local dist = math.floor((myPart.Position - root.Position).Magnitude)
+										
+										if dist <= 2500 then
+											local txt = gui:FindFirstChild("InfoText")
+											if txt then
+												txt.Text = string.format("[BOT] | [%dm] | %d HP", dist, math.floor(hum.Health))
+												txt.TextSize = dist > 1500 and 11 or (dist > 500 and 12 or 14)
+											end
+											gui.Enabled = true
+										else
+											gui.Enabled = false
+										end
 									end
-									if not gui.Enabled then gui.Enabled = true end
-									if not hl.Enabled then hl.Enabled = true end
-								else
-									if gui.Enabled then gui.Enabled = false end
-									if hl.Enabled then hl.Enabled = false end
+								end
+							end
+						end
+						
+						-- ลบบอทที่ตายแล้ว
+						for _, obj in ipairs(botEspFolder:GetChildren()) do
+							if obj:IsA("BillboardGui") then
+								local adornee = obj.Adornee
+								if not adornee or not adornee.Parent or not adornee.Parent:FindFirstChildOfClass("Humanoid") or adornee.Parent:FindFirstChildOfClass("Humanoid").Health <= 0 then
+									obj:Destroy()
 								end
 							end
 						end
 					end
-				end
-				for _, obj in ipairs(botEspFolder:GetChildren()) do
-					if obj:IsA("BillboardGui") or obj:IsA("Highlight") then
-						local adornee = obj.Adornee
-						if not adornee or not adornee.Parent or not adornee.Parent:FindFirstChildOfClass("Humanoid") or adornee.Parent:FindFirstChildOfClass("Humanoid").Health <= 0 then
-							obj:Destroy()
-						end
-					end
+					task.wait(0.5) -- หาของในแมพแค่วิละ 2 ครั้งพอ จะได้ไม่แลค
 				end
 			end)
 		else
-			if botEspLoop then botEspLoop:Disconnect() botEspLoop = nil end
 			if botEspFolder then botEspFolder:Destroy() botEspFolder = nil end
 		end
 	end
 })
 
-local exitLoop, exitFolder = nil, nil
+-- ================= ESP EXIT =================
+local espExitActive = false
+local exitFolder = nil
+
 Tab:Toggle({
 	Title = "ESP ทางออก",
-	Desc = "ON/OFF Exit",
 	Value = false,
 	Callback = function(state)
+		espExitActive = state
 		if state then
 			if not exitFolder then
 				exitFolder = Instance.new("Folder")
-				exitFolder.Name = "ExitESPFolder"
 				pcall(function() exitFolder.Parent = CoreGui end)
 				if not exitFolder.Parent then exitFolder.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 			end
-			exitLoop = RunService.RenderStepped:Connect(function()
-				local myChar = getCustomCharacter(LocalPlayer)
-				local myPart = getTargetPart(myChar)
-				if not myPart then return end
-				local noCol = workspace:FindFirstChild("NoCollision")
-				if noCol then
-					local exitLocs = noCol:FindFirstChild("ExitLocations")
-					if exitLocs then
-						for _, v in ipairs(exitLocs:GetChildren()) do
-							if v.Name == "Exit" then
-								createOrUpdateObjectESP(exitFolder, v, "🚪 ทางออก", Color3.fromRGB(50, 255, 50), myPart)
+			task.spawn(function()
+				while espExitActive do
+					local myChar = getCustomCharacter(LocalPlayer)
+					local myPart = getTargetPart(myChar)
+					if myPart then
+						local noCol = workspace:FindFirstChild("NoCollision")
+						if noCol and noCol:FindFirstChild("ExitLocations") then
+							for _, v in ipairs(noCol.ExitLocations:GetChildren()) do
+								if v.Name == "Exit" then
+									createOrUpdateObjectESP(exitFolder, v, "🚪 ทางออก", Color3.fromRGB(50, 255, 50), myPart)
+								end
 							end
 						end
 					end
+					task.wait(1) -- อัปเดตวิละครั้ง เพราะทางออกไม่ขยับ
 				end
 			end)
 		else
-			if exitLoop then exitLoop:Disconnect() exitLoop = nil end
 			if exitFolder then exitFolder:Destroy() exitFolder = nil end
 		end
 	end
 })
 
-local crateLoop, crateFolder = nil, nil
+-- ================= ESP CRATES =================
+local espCrateActive = false
+local crateFolder = nil
+
 Tab:Toggle({
 	Title = "ESP กล่องทหาร",
-	Desc = "ON/OFF Crates",
 	Value = false,
 	Callback = function(state)
+		espCrateActive = state
 		if state then
 			if not crateFolder then
 				crateFolder = Instance.new("Folder")
-				crateFolder.Name = "CrateESPFolder"
 				pcall(function() crateFolder.Parent = CoreGui end)
 				if not crateFolder.Parent then crateFolder.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 			end
-			crateLoop = RunService.RenderStepped:Connect(function()
-				local myChar = getCustomCharacter(LocalPlayer)
-				local myPart = getTargetPart(myChar)
-				if not myPart then return end
-				local containers = workspace:FindFirstChild("Containers")
-				if containers then
-					for _, v in ipairs(containers:GetChildren()) do
-						if v.Name == "MilitaryCrate" or v.Name == "Military Crate" then
-							createOrUpdateObjectESP(crateFolder, v, "📦 กล่องทหาร", Color3.fromRGB(255, 165, 0), myPart)
-						elseif v.Name == "Small Military Box" or v.Name == "SmallMilitaryBox" then
-							createOrUpdateObjectESP(crateFolder, v, "📦 กล่องอาวุธเล็ก", Color3.fromRGB(50, 255, 50), myPart) 
-						elseif v.Name == "Large Military Box" or v.Name == "LargeMilitaryBox" then
-							createOrUpdateObjectESP(crateFolder, v, "📦 กล่องอาวุธใหญ่", Color3.fromRGB(255, 215, 0), myPart)
-						elseif v.Name == "Large ABPOPA Box" or v.Name == "LargeABPOPABox" then
-							createOrUpdateObjectESP(crateFolder, v, "📦 กล่อง ABPOPA ใหญ่", Color3.fromRGB(180, 50, 255), myPart)
+			task.spawn(function()
+				while espCrateActive do
+					local myChar = getCustomCharacter(LocalPlayer)
+					local myPart = getTargetPart(myChar)
+					if myPart then
+						local containers = workspace:FindFirstChild("Containers")
+						if containers then
+							for _, v in ipairs(containers:GetChildren()) do
+								if v.Name == "MilitaryCrate" or v.Name == "Military Crate" then
+									createOrUpdateObjectESP(crateFolder, v, "📦 กล่องทหาร", Color3.fromRGB(255, 165, 0), myPart)
+								elseif v.Name == "Small Military Box" or v.Name == "SmallMilitaryBox" then
+									createOrUpdateObjectESP(crateFolder, v, "📦 กล่องอาวุธเล็ก", Color3.fromRGB(50, 255, 50), myPart) 
+								elseif v.Name == "Large Military Box" or v.Name == "LargeMilitaryBox" then
+									createOrUpdateObjectESP(crateFolder, v, "📦 กล่องอาวุธใหญ่", Color3.fromRGB(255, 215, 0), myPart)
+								elseif v.Name == "Large ABPOPA Box" or v.Name == "LargeABPOPABox" then
+									createOrUpdateObjectESP(crateFolder, v, "📦 กล่อง ABPOPA ใหญ่", Color3.fromRGB(180, 50, 255), myPart)
+								end
+							end
 						end
 					end
-				end
-				for _, gui in ipairs(crateFolder:GetChildren()) do
-					if not gui.Adornee or not gui.Adornee.Parent then
-						gui:Destroy()
-					end
+					task.wait(1) -- กล่องไม่ขยับ อัปเดตวิละครั้งพอ
 				end
 			end)
 		else
-			if crateLoop then crateLoop:Disconnect() crateLoop = nil end
 			if crateFolder then crateFolder:Destroy() crateFolder = nil end
 		end
 	end
 })
 
+-- ================= NIGHT VISION =================
+local nightVisionActive = false
 local lightingConnection = nil
+
 Tab:Toggle({
 	Title = "Night Vision",
-	Desc = "ON/OFF Night Vision",
 	Value = false,
 	Callback = function(state)
+		nightVisionActive = state
 		if state then
 			local function applyNightVision()
 				Lighting.Brightness = 2
@@ -507,10 +508,7 @@ Tab:Toggle({
 			applyNightVision()
 			lightingConnection = Lighting.Changed:Connect(applyNightVision)
 		else
-			if lightingConnection then
-				lightingConnection:Disconnect()
-				lightingConnection = nil
-			end
+			if lightingConnection then lightingConnection:Disconnect() lightingConnection = nil end
 			Lighting.Brightness = origLighting.Brightness
 			Lighting.ClockTime = origLighting.ClockTime
 			Lighting.FogEnd = origLighting.FogEnd
