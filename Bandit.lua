@@ -13,6 +13,7 @@ local Camera = workspace.CurrentCamera
 
 local FOV_RADIUS = 150
 local AIM_SMOOTHNESS = 1
+local MAX_AIM_DISTANCE = 600 -- ตั้งค่าระยะล็อกเป้าสูงสุดที่ 600 เมตร
 
 local origLighting = {
 	Brightness = Lighting.Brightness,
@@ -94,8 +95,9 @@ end
 
 local function getBestTargetInFOV(myPos)
 	local closestTarget = nil
-	local shortestDist = math.huge
+	local shortestDist = MAX_AIM_DISTANCE -- เซ็ตระยะเริ่มต้นที่ 600 เมตรเลย ถ้าไกลกว่านี้คัดทิ้งทันที!
 	local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+	
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player ~= LocalPlayer then
 			local char = getCustomCharacter(player)
@@ -105,9 +107,11 @@ local function getBestTargetInFOV(myPos)
 				if onScreen then
 					local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
 					if screenDist <= FOV_RADIUS then
-						if isVisible(targetPart) then 
-							local dist = (myPos - targetPart.Position).Magnitude
-							if dist < shortestDist then
+						local dist = (myPos - targetPart.Position).Magnitude
+						
+						-- ตัดคนไกลทิ้งก่อน ลดแลคจากการใช้ Raycast (isVisible) ค้นหาทะลุกำแพง
+						if dist <= shortestDist then
+							if isVisible(targetPart) then 
 								shortestDist = dist
 								closestTarget = targetPart
 							end
@@ -177,8 +181,8 @@ local VisualsTab = Window:Tab({ Title = "Visuals", Locked = false })
 local aimbotEnabled, aimbotLoop, screenGui = false, nil, nil
 
 Tab:Toggle({
-	Title = "Aimbot",
-	Desc = "ON/OFF Aimbot",
+	Title = "Aimbot (Limit 600m)",
+	Desc = "ON/OFF Aimbot (ล็อกเป้าเฉพาะคนที่อยู่ในระยะไม่เกิน 600m)",
 	Value = false,
 	Callback = function(state)
 		aimbotEnabled = state
@@ -582,16 +586,4 @@ VisualsTab:Button({
 			for _, v in ipairs(Lighting:GetDescendants()) do
 				if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") then
 					v.Enabled = false
-					v:Destroy()
-				end
-			end
-
-			if Terrain then
-				Terrain.WaterWaveSize = 0
-				Terrain.WaterWaveSpeed = 0
-				Terrain.WaterReflectance = 0
-				Terrain.WaterTransparency = 1
-			end
-		end)
-	end
-})
+					v
