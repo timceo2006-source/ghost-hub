@@ -101,7 +101,6 @@ local function getBestTargetInFOV(myPos)
 				if onScreen then
 					local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
 					if screenDist <= FOV_RADIUS then
-						-- จุดนี้ปรับแต่งแล้ว ลดแลค 100% เพราะเรย์คาสแค่คนที่อยู่ใน FOV
 						if isVisible(targetPart) then 
 							local dist = (myPos - targetPart.Position).Magnitude
 							if dist < shortestDist then
@@ -157,7 +156,7 @@ local Window = WindUI:CreateWindow({
 	Size = UDim2.fromOffset(580, 460),
 	MinSize = Vector2.new(560, 350),
 	MaxSize = Vector2.new(850, 560),
-	ToggleKey = Enum.KeyCode.LeftShift,
+	ToggleKey = Enum.KeyCode.RightControl, -- เปลี่ยนปุ่มเป็น RightControl เพื่อไม่ให้ตีกับปุ่มวิ่ง
 	Transparent = true,
 	Theme = "Dark",
 	Resizable = true,
@@ -403,7 +402,7 @@ local exitFolder = nil
 
 Tab:Toggle({
 	Title = "ESP ทางออก",
-	Desc = "เปิด/ปิด ทางออก (อัปเดตเรียลไทม์ไม่หน่วง)",
+	Desc = "เปิด/ปิด ทางออก",
 	Value = false,
 	Callback = function(state)
 		if state then
@@ -441,7 +440,7 @@ local crateFolder = nil
 
 Tab:Toggle({
 	Title = "ESP กล่องทหาร",
-	Desc = "เปิด/ปิด กล่อง (อัปเดตเรียลไทม์ไม่หน่วง)",
+	Desc = "เปิด/ปิด กล่อง",
 	Value = false,
 	Callback = function(state)
 		if state then
@@ -536,7 +535,8 @@ toggleBtn.Parent = mobileToggleGui
 makeDraggable(toggleBtn)
 
 toggleBtn.MouseButton1Click:Connect(function()
-	VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
+	-- เปลี่ยนการจำลองปุ่มจาก LeftShift เป็น RightControl แทน
+	VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.RightControl, false, game)
 	task.wait(0.05)
-	VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game)
+	VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.RightControl, false, game)
 end)
