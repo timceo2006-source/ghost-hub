@@ -1,3 +1,8 @@
+-- ป้องกันการรันสคริปต์ก่อนเกมโหลดเสร็จ (กัน Error)
+if not game:IsLoaded() then
+	game.Loaded:Wait()
+end
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
@@ -171,10 +176,7 @@ local Window = WindUI:CreateWindow({
     },
 })
 
--- สร้างแท็บ Main (สำหรับ ESP และ Aimbot)
 local Tab = Window:Tab({ Title = "Main", Locked = false })
-
--- สร้างแท็บ Visuals (สำหรับปรับสภาพแวดล้อม ภาพ ลบหญ้า ลดแลค)
 local VisualsTab = Window:Tab({ Title = "Visuals", Locked = false })
 
 -- ================= AIMBOT =================
@@ -506,11 +508,7 @@ Tab:Toggle({
 	end
 })
 
--- ===================================================
--- 🌟 แถบเมนูใหม่: VISUALS (รวมการแต่งภาพ/ลบหญ้า/ลดแลค)
--- ===================================================
-
--- ================= NIGHT VISION =================
+-- ================= VISUALS =================
 local nightVisionActive = false
 local lightingConnection = nil
 
@@ -541,7 +539,6 @@ VisualsTab:Toggle({
 	end
 })
 
--- ================= REMOVE GRASS =================
 local origDecoration = false
 pcall(function()
 	origDecoration = workspace.Terrain.Decoration
@@ -562,22 +559,32 @@ VisualsTab:Toggle({
 	end
 })
 
--- ================= BOOST FPS =================
 VisualsTab:Button({
 	Title = "🚀 Boost FPS (ลดแลคจัดเต็ม)",
 	Desc = "ลบแสงเงา หมอก และเอฟเฟกต์กินสเปค (กดแล้วคืนค่าไม่ได้)",
 	Callback = function()
 		pcall(function()
-			local Lighting = game:GetService("Lighting")
 			local Terrain = workspace.Terrain
 
-			-- 1. ปิดระบบแสงเงาและหมอก
 			Lighting.GlobalShadows = false
 			Lighting.FogEnd = 9e9
 			Lighting.ShadowSoftness = 0
 			Lighting.EnvironmentDiffuseScale = 0
 			Lighting.EnvironmentSpecularScale = 0
 
-			-- 2. ลบ Post-Processing Effects (พวกแสงสะท้อน, เบลอ, แสงแดด)
 			for _, v in ipairs(Lighting:GetDescendants()) do
-				if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCo
+				if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") then
+					v.Enabled = false
+					v:Destroy()
+				end
+			end
+
+			if Terrain then
+				Terrain.WaterWaveSize = 0
+				Terrain.WaterWaveSpeed = 0
+				Terrain.WaterReflectance = 0
+				Terrain.WaterTransparency = 1
+			end
+		end)
+	end
+})
