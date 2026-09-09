@@ -155,7 +155,7 @@ local Window = WindUI:CreateWindow({
 	Size = UDim2.fromOffset(580, 460),
 	MinSize = Vector2.new(560, 350),
 	MaxSize = Vector2.new(850, 560),
-	ToggleKey = Enum.KeyCode.RightControl, -- ใช้ RightControl ย่อ UI เหมือนเดิม
+	ToggleKey = Enum.KeyCode.RightControl,
 	Transparent = true,
 	Theme = "Dark",
 	Resizable = true,
@@ -165,14 +165,18 @@ local Window = WindUI:CreateWindow({
 	ScrollBarEnabled = false,
 })
 
+-- สร้างแท็บ Main (สำหรับ ESP และ Aimbot)
 local Tab = Window:Tab({ Title = "Main", Locked = false })
+
+-- สร้างแท็บ Visuals (สำหรับปรับสภาพแวดล้อม ภาพ ลบหญ้า)
+local VisualsTab = Window:Tab({ Title = "Visuals", Locked = false })
 
 -- ================= AIMBOT =================
 local aimbotEnabled, aimbotLoop, screenGui = false, nil, nil
 
 Tab:Toggle({
 	Title = "Aimbot",
-	Desc = "ON/OFF Aimbot (สมูทขึ้น ไม่กินสเปค)",
+	Desc = "ON/OFF Aimbot",
 	Value = false,
 	Callback = function(state)
 		aimbotEnabled = state
@@ -234,18 +238,27 @@ local espFolder = nil
 
 Tab:Toggle({
 	Title = "ESP Players",
-	Desc = "เปิด/ปิด ESP ผู้เล่น (อัปเดตเรียลไทม์ แก้กระพริบ)",
+	Desc = "เปิด/ปิด ESP ผู้เล่น",
 	Value = false,
 	Callback = function(state)
 		if state then
-			if not espFolder then
+			local function ensureFolder()
+				if espFolder and espFolder.Parent then return end
 				espFolder = Instance.new("Folder")
 				espFolder.Name = "SecureESPFolder"
-				pcall(function() espFolder.Parent = CoreGui end)
-				if not espFolder.Parent then espFolder.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+				local success, hiddenGui = pcall(function() return gethui() end)
+				if success and hiddenGui then
+					espFolder.Parent = hiddenGui
+				else
+					pcall(function() espFolder.Parent = CoreGui end)
+					if not espFolder.Parent then espFolder.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+				end
 			end
 			
+			ensureFolder()
+			
 			espLoop = RunService.RenderStepped:Connect(function()
+				ensureFolder()
 				local myChar = getCustomCharacter(LocalPlayer)
 				local myPart = getTargetPart(myChar)
 				if not myPart then return end
@@ -258,27 +271,31 @@ Tab:Toggle({
 						if char and targetPart and isValidTarget(char) then
 							local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
 							if not gui then
-								gui = Instance.new("BillboardGui", espFolder)
+								gui = Instance.new("BillboardGui")
 								gui.Name = player.Name .. "_ESP"
 								gui.Size = UDim2.new(0, 200, 0, 50)
 								gui.StudsOffset = Vector3.new(0, 2, 0)
 								gui.AlwaysOnTop = true
-								local txt = Instance.new("TextLabel", gui)
+								
+								local txt = Instance.new("TextLabel")
 								txt.Name = "InfoText"
 								txt.Size = UDim2.new(1, 0, 1, 0)
 								txt.BackgroundTransparency = 1
 								txt.TextColor3 = Color3.fromRGB(0, 255, 255)
 								txt.TextStrokeTransparency = 0
 								txt.Font = Enum.Font.SourceSansBold
+								txt.Parent = gui
+								gui.Parent = espFolder
 							end
 							
 							local hl = espFolder:FindFirstChild(player.Name .. "_HL")
 							if not hl then
-								hl = Instance.new("Highlight", espFolder)
+								hl = Instance.new("Highlight")
 								hl.Name = player.Name .. "_HL"
 								hl.FillColor = Color3.fromRGB(0, 255, 255)
 								hl.OutlineColor = Color3.fromRGB(255, 255, 255)
 								hl.FillTransparency = 0.5
+								hl.Parent = espFolder
 							end
 							
 							if gui.Adornee ~= targetPart then gui.Adornee = targetPart end
@@ -293,17 +310,17 @@ Tab:Toggle({
 									txt.Text = string.format("%s | [%dm] | %d HP", player.Name, dist, hp)
 									txt.TextSize = dist > 1500 and 11 or (dist > 500 and 12 or 14)
 								end
-								gui.Enabled = true
-								hl.Enabled = true
+								if not gui.Enabled then gui.Enabled = true end
+								if not hl.Enabled then hl.Enabled = true end
 							else
-								gui.Enabled = false
-								hl.Enabled = false
+								if gui.Enabled then gui.Enabled = false end
+								if hl.Enabled then hl.Enabled = false end
 							end
 						else
 							local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
 							local hl = espFolder:FindFirstChild(player.Name .. "_HL")
-							if gui then gui.Enabled = false end
-							if hl then hl.Enabled = false end
+							if gui and gui.Enabled then gui.Enabled = false end
+							if hl and hl.Enabled then hl.Enabled = false end
 						end
 					end
 				end
@@ -483,12 +500,17 @@ Tab:Toggle({
 	end
 })
 
+-- ===================================================
+-- 🌟 แถบเมนูใหม่: VISUALS (รวมการแต่งภาพ/ลบหญ้า)
+-- ===================================================
+
 -- ================= NIGHT VISION =================
 local nightVisionActive = false
 local lightingConnection = nil
 
-Tab:Toggle({
+VisualsTab:Toggle({
 	Title = "Night Vision",
+	Desc = "เปิด/ปิด การมองเห็นตอนกลางคืน",
 	Value = false,
 	Callback = function(state)
 		nightVisionActive = state
@@ -510,5 +532,26 @@ Tab:Toggle({
 			Lighting.GlobalShadows = origLighting.GlobalShadows
 			Lighting.Ambient = origLighting.Ambient
 		end
+	end
+})
+
+-- ================= REMOVE GRASS =================
+local origDecoration = false
+pcall(function()
+	origDecoration = workspace.Terrain.Decoration
+end)
+
+VisualsTab:Toggle({
+	Title = "Remove Grass (ลบหญ้า)",
+	Desc = "ลบหญ้าบนพื้น โล่งตา หาคนง่ายและลดแลค",
+	Value = false,
+	Callback = function(state)
+		pcall(function()
+			if state then
+				workspace.Terrain.Decoration = false
+			else
+				workspace.Terrain.Decoration = origDecoration
+			end
+		end)
 	end
 })
