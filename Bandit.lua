@@ -2,7 +2,6 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 local Lighting = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
@@ -156,7 +155,7 @@ local Window = WindUI:CreateWindow({
 	Size = UDim2.fromOffset(580, 460),
 	MinSize = Vector2.new(560, 350),
 	MaxSize = Vector2.new(850, 560),
-	ToggleKey = Enum.KeyCode.RightControl, -- เปลี่ยนปุ่มเป็น RightControl เพื่อไม่ให้ตีกับปุ่มวิ่ง
+	ToggleKey = Enum.KeyCode.RightControl, -- ใช้ RightControl ย่อ UI เหมือนเดิม
 	Transparent = true,
 	Theme = "Dark",
 	Resizable = true,
@@ -513,30 +512,3 @@ Tab:Toggle({
 		end
 	end
 })
-
--- ================= ปุ่มผีลอยบนจอสำหรับมือถือ =================
-local mobileToggleGui = Instance.new("ScreenGui")
-mobileToggleGui.Name = "GhostHubMobileToggle"
-mobileToggleGui.ResetOnSpawn = false
-pcall(function() mobileToggleGui.Parent = CoreGui end)
-if not mobileToggleGui.Parent then mobileToggleGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
-
-local toggleBtn = Instance.new("TextButton")
-toggleBtn.Size = UDim2.new(0, 45, 0, 45)
-toggleBtn.Position = UDim2.new(0, 15, 0, 15)
-toggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-toggleBtn.BorderColor3 = Color3.fromRGB(0, 255, 255)
-toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleBtn.Font = Enum.Font.SourceSansBold
-toggleBtn.TextSize = 22
-toggleBtn.Text = "👻"
-toggleBtn.Parent = mobileToggleGui
-
-makeDraggable(toggleBtn)
-
-toggleBtn.MouseButton1Click:Connect(function()
-	-- เปลี่ยนการจำลองปุ่มจาก LeftShift เป็น RightControl แทน
-	VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.RightControl, false, game)
-	task.wait(0.05)
-	VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.RightControl, false, game)
-end)
