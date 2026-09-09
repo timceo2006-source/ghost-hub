@@ -174,7 +174,7 @@ local Window = WindUI:CreateWindow({
 -- สร้างแท็บ Main (สำหรับ ESP และ Aimbot)
 local Tab = Window:Tab({ Title = "Main", Locked = false })
 
--- สร้างแท็บ Visuals (สำหรับปรับสภาพแวดล้อม ภาพ ลบหญ้า)
+-- สร้างแท็บ Visuals (สำหรับปรับสภาพแวดล้อม ภาพ ลบหญ้า ลดแลค)
 local VisualsTab = Window:Tab({ Title = "Visuals", Locked = false })
 
 -- ================= AIMBOT =================
@@ -507,7 +507,7 @@ Tab:Toggle({
 })
 
 -- ===================================================
--- 🌟 แถบเมนูใหม่: VISUALS (รวมการแต่งภาพ/ลบหญ้า)
+-- 🌟 แถบเมนูใหม่: VISUALS (รวมการแต่งภาพ/ลบหญ้า/ลดแลค)
 -- ===================================================
 
 -- ================= NIGHT VISION =================
@@ -561,3 +561,23 @@ VisualsTab:Toggle({
 		end)
 	end
 })
+
+-- ================= BOOST FPS =================
+VisualsTab:Button({
+	Title = "🚀 Boost FPS (ลดแลคจัดเต็ม)",
+	Desc = "ลบแสงเงา หมอก และเอฟเฟกต์กินสเปค (กดแล้วคืนค่าไม่ได้)",
+	Callback = function()
+		pcall(function()
+			local Lighting = game:GetService("Lighting")
+			local Terrain = workspace.Terrain
+
+			-- 1. ปิดระบบแสงเงาและหมอก
+			Lighting.GlobalShadows = false
+			Lighting.FogEnd = 9e9
+			Lighting.ShadowSoftness = 0
+			Lighting.EnvironmentDiffuseScale = 0
+			Lighting.EnvironmentSpecularScale = 0
+
+			-- 2. ลบ Post-Processing Effects (พวกแสงสะท้อน, เบลอ, แสงแดด)
+			for _, v in ipairs(Lighting:GetDescendants()) do
+				if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCo
