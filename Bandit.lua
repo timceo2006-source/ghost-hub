@@ -240,26 +240,35 @@ Tab:Toggle({
 	end
 })
 
--- ================= ESP PLAYERS =================
+-- ================= ESP PLAYERS (Last Known Position) =================
 local espLoop = nil
 local espFolder = nil
+local anchorFolder = nil
+local espAnchors = {}
 
 Tab:Toggle({
 	Title = "ESP Players",
-	Desc = "เปิด/ปิด ESP ผู้เล่น",
+	Desc = "เปิด/ปิด ESP (ระบบจำตำแหน่งล่าสุดเมื่อศัตรูหายไป)",
 	Value = false,
 	Callback = function(state)
 		if state then
 			local function ensureFolder()
-				if espFolder and espFolder.Parent then return end
-				espFolder = Instance.new("Folder")
-				espFolder.Name = "SecureESPFolder"
-				local success, hiddenGui = pcall(function() return gethui() end)
-				if success and hiddenGui then
-					espFolder.Parent = hiddenGui
-				else
-					pcall(function() espFolder.Parent = CoreGui end)
-					if not espFolder.Parent then espFolder.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+				if not (espFolder and espFolder.Parent) then
+					espFolder = Instance.new("Folder")
+					espFolder.Name = "SecureESPFolder"
+					local success, hiddenGui = pcall(function() return gethui() end)
+					if success and hiddenGui then
+						espFolder.Parent = hiddenGui
+					else
+						pcall(function() espFolder.Parent = CoreGui end)
+						if not espFolder.Parent then espFolder.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+					end
+				end
+				
+				if not (anchorFolder and anchorFolder.Parent) then
+					anchorFolder = Instance.new("Folder")
+					anchorFolder.Name = "ESP_Anchors"
+					anchorFolder.Parent = workspace
 				end
 			end
 			
@@ -273,62 +282,99 @@ Tab:Toggle({
 				
 				for _, player in ipairs(Players:GetPlayers()) do
 					if player ~= LocalPlayer then
+						
+						-- สร้างสมอ (Anchor) ล่องหนให้ผู้เล่น
+						local anchor = espAnchors[player]
+						if not anchor or not anchor.Parent then
+							anchor = Instance.new("Part")
+							anchor.Name = "Anchor_" .. player.Name
+							anchor.Transparency = 1
+							anchor.Anchored = true
+							anchor.CanCollide = false
+							anchor.Size = Vector3.new(1, 1, 1)
+							anchor.Position = Vector3.new(0, -9999, 0)
+							anchor.Parent = anchorFolder
+							espAnchors[player] = anchor
+						end
+
+						-- สร้างป้ายชื่อ (เกาะกับสมอ)
+						local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
+						if not gui then
+							gui = Instance.new("BillboardGui")
+							gui.Name = player.Name .. "_ESP"
+							gui.Size = UDim2.new(0, 200, 0, 50)
+							gui.StudsOffset = Vector3.new(0, 2.5, 0)
+							gui.AlwaysOnTop = true
+							
+							local txt = Instance.new("TextLabel")
+							txt.Name = "InfoText"
+							txt.Size = UDim2.new(1, 0, 1, 0)
+							txt.BackgroundTransparency = 1
+							txt.TextStrokeTransparency = 0.5
+							txt.Font = Enum.Font.SourceSansBold
+							txt.Parent = gui
+							gui.Parent = espFolder
+						end
+						
+						if gui.Adornee ~= anchor then gui.Adornee = anchor end
+
+						local hl = espFolder:FindFirstChild(player.Name .. "_HL")
+						if not hl then
+							hl = Instance.new("Highlight")
+							hl.Name = player.Name .. "_HL"
+							hl.FillColor = Color3.fromRGB(0, 255, 255)
+							hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+							hl.FillTransparency = 0.5
+							hl.Parent = espFolder
+						end
+						
 						local char = getCustomCharacter(player)
 						local targetPart = getTargetPart(char)
+						local txt = gui:FindFirstChild("InfoText")
 						
+						-- ถ้าศัตรูอยู่ในระยะและมองเห็น (Active)
 						if char and targetPart and isValidTarget(char) then
-							local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
-							if not gui then
-								gui = Instance.new("BillboardGui")
-								gui.Name = player.Name .. "_ESP"
-								gui.Size = UDim2.new(0, 200, 0, 50)
-								gui.StudsOffset = Vector3.new(0, 2, 0)
-								gui.AlwaysOnTop = true
-								
-								local txt = Instance.new("TextLabel")
-								txt.Name = "InfoText"
-								txt.Size = UDim2.new(1, 0, 1, 0)
-								txt.BackgroundTransparency = 1
-								txt.TextColor3 = Color3.fromRGB(0, 255, 255)
-								txt.TextStrokeTransparency = 0
-								txt.Font = Enum.Font.SourceSansBold
-								txt.Parent = gui
-								gui.Parent = espFolder
-							end
-							
-							local hl = espFolder:FindFirstChild(player.Name .. "_HL")
-							if not hl then
-								hl = Instance.new("Highlight")
-								hl.Name = player.Name .. "_HL"
-								hl.FillColor = Color3.fromRGB(0, 255, 255)
-								hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-								hl.FillTransparency = 0.5
-								hl.Parent = espFolder
-							end
-							
-							if gui.Adornee ~= targetPart then gui.Adornee = targetPart end
-							if hl.Adornee ~= char then hl.Adornee = char end
+							-- ย้ายสมอมาที่ตัวศัตรู
+							anchor.Position = targetPart.Position
 							
 							local dist = math.floor((myPart.Position - targetPart.Position).Magnitude)
 							if dist <= 3000 then
-								local txt = gui:FindFirstChild("InfoText")
 								if txt then
 									local hum = char:FindFirstChildOfClass("Humanoid")
 									local hp = hum and math.floor(hum.Health) or 0
+									txt.TextColor3 = Color3.fromRGB(0, 255, 255)
 									txt.Text = string.format("%s | [%dm] | %d HP", player.Name, dist, hp)
 									txt.TextSize = dist > 1500 and 11 or (dist > 500 and 12 or 14)
 								end
-								if not gui.Enabled then gui.Enabled = true end
-								if not hl.Enabled then hl.Enabled = true end
+								
+								if hl.Adornee ~= char then hl.Adornee = char end
+								hl.Enabled = true
+								gui.Enabled = true
 							else
-								if gui.Enabled then gui.Enabled = false end
-								if hl.Enabled then hl.Enabled = false end
+								hl.Enabled = false
+								gui.Enabled = false
 							end
+							
+						-- ถ้าศัตรูหายไป โดนเกมสตรีมทิ้ง หรือตาย (Ghost Mode)
 						else
-							local gui = espFolder:FindFirstChild(player.Name .. "_ESP")
-							local hl = espFolder:FindFirstChild(player.Name .. "_HL")
-							if gui and gui.Enabled then gui.Enabled = false end
-							if hl and hl.Enabled then hl.Enabled = false end
+							hl.Enabled = false -- ปิดไฮไลต์เพราะไม่มีตัวคน
+							
+							-- เช็คว่าสมอเคยบันทึกตำแหน่งไว้ไหม (ตำแหน่งต้องไม่ใช่อยู่ใต้ดินลึกๆ)
+							if anchor.Position.Y > -9000 then
+								local dist = math.floor((myPart.Position - anchor.Position).Magnitude)
+								if dist <= 3000 then
+									if txt then
+										txt.TextColor3 = Color3.fromRGB(170, 170, 170) -- เปลี่ยนป้ายเป็นสีเทา
+										txt.Text = string.format("%s [LAST SEEN %dm]", player.Name, dist)
+										txt.TextSize = 12
+									end
+									gui.Enabled = true
+								else
+									gui.Enabled = false
+								end
+							else
+								gui.Enabled = false
+							end
 						end
 					end
 				end
@@ -336,6 +382,8 @@ Tab:Toggle({
 		else
 			if espLoop then espLoop:Disconnect() espLoop = nil end
 			if espFolder then espFolder:Destroy() espFolder = nil end
+			if anchorFolder then anchorFolder:Destroy() anchorFolder = nil end
+			espAnchors = {} -- เคลียร์สมอทั้งหมดเวลาปิด ESP
 		end
 	end
 })
@@ -533,58 +581,4 @@ VisualsTab:Toggle({
 			Lighting.Brightness = origLighting.Brightness
 			Lighting.ClockTime = origLighting.ClockTime
 			Lighting.FogEnd = origLighting.FogEnd
-			Lighting.GlobalShadows = origLighting.GlobalShadows
-			Lighting.Ambient = origLighting.Ambient
-		end
-	end
-})
-
-local origDecoration = false
-pcall(function()
-	origDecoration = workspace.Terrain.Decoration
-end)
-
-VisualsTab:Toggle({
-	Title = "Remove Grass (ลบหญ้า)",
-	Desc = "ลบหญ้าบนพื้น โล่งตา หาคนง่ายและลดแลค",
-	Value = false,
-	Callback = function(state)
-		pcall(function()
-			if state then
-				workspace.Terrain.Decoration = false
-			else
-				workspace.Terrain.Decoration = origDecoration
-			end
-		end)
-	end
-})
-
-VisualsTab:Button({
-	Title = "🚀 Boost FPS (ลดแลคจัดเต็ม)",
-	Desc = "ลบแสงเงา หมอก และเอฟเฟกต์กินสเปค (กดแล้วคืนค่าไม่ได้)",
-	Callback = function()
-		pcall(function()
-			local Terrain = workspace.Terrain
-
-			Lighting.GlobalShadows = false
-			Lighting.FogEnd = 9e9
-			Lighting.ShadowSoftness = 0
-			Lighting.EnvironmentDiffuseScale = 0
-			Lighting.EnvironmentSpecularScale = 0
-
-			for _, v in ipairs(Lighting:GetDescendants()) do
-				if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") then
-					v.Enabled = false
-					v:Destroy()
-				end
-			end
-
-			if Terrain then
-				Terrain.WaterWaveSize = 0
-				Terrain.WaterWaveSpeed = 0
-				Terrain.WaterReflectance = 0
-				Terrain.WaterTransparency = 1
-			end
-		end)
-	end
-})
+			Lighting.GlobalShadows = or
