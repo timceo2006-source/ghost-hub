@@ -13,7 +13,7 @@ local Camera = workspace.CurrentCamera
 
 local FOV_RADIUS = 150
 local AIM_SMOOTHNESS = 1
-local MAX_AIM_DISTANCE = 600 -- ตั้งค่าระยะล็อกเป้าสูงสุดที่ 600 เมตร
+local MAX_AIM_DISTANCE = 600
 
 local origLighting = {
 	Brightness = Lighting.Brightness,
@@ -95,25 +95,27 @@ end
 
 local function getBestTargetInFOV(myPos)
 	local closestTarget = nil
-	local shortestDist = MAX_AIM_DISTANCE -- เซ็ตระยะเริ่มต้นที่ 600 เมตรเลย ถ้าไกลกว่านี้คัดทิ้งทันที!
+	local shortestDist = math.huge
 	local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 	
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player ~= LocalPlayer then
 			local char = getCustomCharacter(player)
 			local targetPart = getTargetPart(char)
+			
 			if char and targetPart and isValidTarget(char) then
-				local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-				if onScreen then
-					local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-					if screenDist <= FOV_RADIUS then
-						local dist = (myPos - targetPart.Position).Magnitude
-						
-						-- ตัดคนไกลทิ้งก่อน ลดแลคจากการใช้ Raycast (isVisible) ค้นหาทะลุกำแพง
-						if dist <= shortestDist then
+				local dist3D = (myPos - targetPart.Position).Magnitude
+				
+				if dist3D <= MAX_AIM_DISTANCE then
+					local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+					if onScreen then
+						local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+						if screenDist <= FOV_RADIUS then
 							if isVisible(targetPart) then 
-								shortestDist = dist
-								closestTarget = targetPart
+								if screenDist < shortestDist then
+									shortestDist = screenDist
+									closestTarget = targetPart
+								end
 							end
 						end
 					end
@@ -174,15 +176,17 @@ local Window = WindUI:CreateWindow({
     ScrollBarEnabled = false,
 })
 
-local Tab = Window:Tab({ Title = "Main", Locked = false })
+-- สร้างแท็บจัดหมวดหมู่ใหม่
+local MainTab = Window:Tab({ Title = "Main", Locked = false })
+local ESPTab = Window:Tab({ Title = "ESP", Locked = false })
 local VisualsTab = Window:Tab({ Title = "Visuals", Locked = false })
 
--- ================= AIMBOT =================
+-- ================= 1. แท็บ MAIN (ระบบต่อสู้) =================
 local aimbotEnabled, aimbotLoop, screenGui = false, nil, nil
 
-Tab:Toggle({
+MainTab:Toggle({
 	Title = "Aimbot (Limit 600m)",
-	Desc = "ON/OFF Aimbot (ล็อกเป้าเฉพาะคนที่อยู่ในระยะไม่เกิน 600m)",
+	Desc = "ON/OFF Aimbot (ล็อกเป้าเฉพาะระยะ 600 เมตร)",
 	Value = false,
 	Callback = function(state)
 		aimbotEnabled = state
@@ -238,7 +242,10 @@ Tab:Toggle({
 	end
 })
 
--- ================= ESP PLAYERS =================
+
+-- ================= 2. แท็บ ESP (ระบบเรดาร์/มองทะลุ) =================
+
+-- ESP Players
 local espPlayerActive = false
 local espFolder = nil
 
@@ -255,9 +262,9 @@ local function ensureFolder()
 	end
 end
 
-Tab:Toggle({
+ESPTab:Toggle({
 	Title = "ESP Players",
-	Desc = "เปิด/ปิด ESP ผู้เล่น (เช็คไว ไม่แลค ไม่กินสเปค)",
+	Desc = "เปิด/ปิด ESP ผู้เล่น",
 	Value = false,
 	Callback = function(state)
 		espPlayerActive = state
@@ -305,7 +312,6 @@ Tab:Toggle({
 										hl.Parent = espFolder
 									end
 									
-									-- บังคับจับ Adornee ใหม่ให้ไวถ้ามันหลุด
 									if gui.Adornee ~= targetPart then gui.Adornee = targetPart end
 									if hl.Adornee ~= char then hl.Adornee = char end
 									
@@ -333,7 +339,6 @@ Tab:Toggle({
 							end
 						end
 					end
-					-- รอแค่ 0.1 วิ (ไวพอที่จะแปะติดใหม่ แต่ไม่ทำเครื่องแลค)
 					task.wait(0.1)
 				end
 			end)
@@ -343,13 +348,13 @@ Tab:Toggle({
 	end
 })
 
--- ================= ESP BOT =================
+-- ESP Bot
 local espBotActive = false
 local botEspFolder = nil
 
-Tab:Toggle({
+ESPTab:Toggle({
 	Title = "ESP บอท (Bot)",
-	Desc = "เปิด/ปิด ESP บอท (ทำงานเบาเครื่อง)",
+	Desc = "เปิด/ปิด ESP บอท",
 	Value = false,
 	Callback = function(state)
 		espBotActive = state
@@ -421,7 +426,6 @@ Tab:Toggle({
 							end
 						end
 					end
-					-- ค้นหาบอททั้งแมพแค่วิละ 2 ครั้ง ลดภาระ CPU มหาศาล
 					task.wait(0.5) 
 				end
 			end)
@@ -431,11 +435,11 @@ Tab:Toggle({
 	end
 })
 
--- ================= ESP EXIT =================
+-- ESP Exit
 local espExitActive = false
 local exitFolder = nil
 
-Tab:Toggle({
+ESPTab:Toggle({
 	Title = "ESP ทางออก",
 	Desc = "เปิด/ปิด ทางออก",
 	Value = false,
@@ -472,11 +476,11 @@ Tab:Toggle({
 	end
 })
 
--- ================= ESP CRATES =================
+-- ESP Crates
 local espCrateActive = false
 local crateFolder = nil
 
-Tab:Toggle({
+ESPTab:Toggle({
 	Title = "ESP กล่องทหาร",
 	Desc = "เปิด/ปิด กล่อง",
 	Value = false,
@@ -519,7 +523,10 @@ Tab:Toggle({
 	end
 })
 
--- ================= VISUALS =================
+
+-- ================= 3. แท็บ VISUALS (ปรับแต่งสภาพแวดล้อม) =================
+
+-- Night Vision
 local nightVisionActive = false
 local lightingConnection = nil
 
@@ -550,6 +557,7 @@ VisualsTab:Toggle({
 	end
 })
 
+-- Remove Grass
 local origDecoration = false
 pcall(function()
 	origDecoration = workspace.Terrain.Decoration
@@ -557,7 +565,7 @@ end)
 
 VisualsTab:Toggle({
 	Title = "Remove Grass (ลบหญ้า)",
-	Desc = "ลบหญ้าบนพื้น โล่งตา หาคนง่ายและลดแลค",
+	Desc = "ลบหญ้าบนพื้น โล่งตา หาคนง่าย",
 	Value = false,
 	Callback = function(state)
 		pcall(function()
@@ -569,21 +577,3 @@ VisualsTab:Toggle({
 		end)
 	end
 })
-
-VisualsTab:Button({
-	Title = "🚀 Boost FPS (ลดแลคจัดเต็ม)",
-	Desc = "ลบแสงเงา หมอก และเอฟเฟกต์กินสเปค (กดแล้วคืนค่าไม่ได้)",
-	Callback = function()
-		pcall(function()
-			local Terrain = workspace.Terrain
-
-			Lighting.GlobalShadows = false
-			Lighting.FogEnd = 9e9
-			Lighting.ShadowSoftness = 0
-			Lighting.EnvironmentDiffuseScale = 0
-			Lighting.EnvironmentSpecularScale = 0
-
-			for _, v in ipairs(Lighting:GetDescendants()) do
-				if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") then
-					v.Enabled = false
-					v
