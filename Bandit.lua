@@ -15,15 +15,6 @@ local FOV_RADIUS = 150
 local AIM_SMOOTHNESS = 1
 local MAX_AIM_DISTANCE = 600
 
--- ========================================================
--- 🟢 ตั้งค่ารายชื่อเพื่อนตรงนี้! (Aimbot จะไม่ยิง / ESP จะเป็นสีเขียว)
--- ========================================================
-local FriendList = {
-	"AQWCCDE", 
-	"ใส่ชื่อเพื่อนคนที่2ตรงนี้",
-}
--- ========================================================
-
 local origLighting = {
 	Brightness = Lighting.Brightness,
 	ClockTime = Lighting.ClockTime,
@@ -102,48 +93,6 @@ local function isVisible(targetPart)
 	return result == nil
 end
 
--- ================= ฟังก์ชันเช็คว่าใช่เพื่อนไหม =================
-local function isFriend(player)
-	if not player then return false end
-	
-	-- 1. เช็คจากชื่อใน FriendList
-	for _, friendName in ipairs(FriendList) do
-		if player.Name == friendName then
-			return true
-		end
-	end
-
-	-- 2. เช็คจากป้าย Team บนหัวตัวละคร
-	local myChar = getCustomCharacter(LocalPlayer)
-	local targetChar = getCustomCharacter(player)
-	
-	if myChar and targetChar then
-		local function readTeamTag(char)
-			local head = char:FindFirstChild("Head")
-			if head then
-				local tag = head:FindFirstChild("PlayerTeamTag")
-				if tag then
-					local teamLabel = tag:FindFirstChild("Team")
-					if teamLabel and teamLabel:IsA("TextLabel") and teamLabel.Text ~= "" then
-						return teamLabel.Text
-					end
-				end
-			end
-			return nil
-		end
-
-		local myTeam = readTeamTag(myChar)
-		local targetTeam = readTeamTag(targetChar)
-		
-		if myTeam and targetTeam and myTeam == targetTeam then
-			return true
-		end
-	end
-	
-	return false
-end
--- =======================================================
-
 local function getBestTargetInFOV(myPos)
 	local closestTarget = nil
 	local shortestDist = math.huge
@@ -154,8 +103,7 @@ local function getBestTargetInFOV(myPos)
 			local char = getCustomCharacter(player)
 			local targetPart = getTargetPart(char)
 			
-			-- เพิ่มเงื่อนไข `not isFriend(player)` Aimbot จะไม่ล็อคเพื่อนเด็ดขาด
-			if char and targetPart and isValidTarget(char) and not isFriend(player) then
+			if char and targetPart and isValidTarget(char) then
 				local dist3D = (myPos - targetPart.Position).Magnitude
 				
 				if dist3D <= MAX_AIM_DISTANCE then
@@ -210,7 +158,6 @@ end
 
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
--- สังเกตว่าบล็อก User={...} หายไปแล้ว เพื่อป้องกันบัคบนมือถือ
 local Window = WindUI:CreateWindow({
     Title = "Ghost Hub",
     Icon = "ghost",
@@ -238,8 +185,8 @@ local VisualsTab = Window:Tab({ Title = "Visuals", Locked = false })
 local aimbotEnabled, aimbotLoop, screenGui = false, nil, nil
 
 MainTab:Toggle({
-	Title = "Aimbot (Limit 600m & Safe Team)",
-	Desc = "ON/OFF Aimbot (ไม่ล็อกเพื่อน เล็งระยะไม่เกิน 600m)",
+	Title = "Aimbot (Limit 600m)",
+	Desc = "ON/OFF Aimbot (ล็อกเป้าเฉพาะระยะ 600 เมตร)",
 	Value = false,
 	Callback = function(state)
 		aimbotEnabled = state
@@ -317,7 +264,7 @@ end
 
 ESPTab:Toggle({
 	Title = "ESP Players",
-	Desc = "เปิด/ปิด ESP ผู้เล่น (เพื่อนสีเขียว, ศัตรูสีฟ้า)",
+	Desc = "เปิด/ปิด ESP ผู้เล่น",
 	Value = false,
 	Callback = function(state)
 		espPlayerActive = state
@@ -348,6 +295,7 @@ ESPTab:Toggle({
 										txt.Name = "InfoText"
 										txt.Size = UDim2.new(1, 0, 1, 0)
 										txt.BackgroundTransparency = 1
+										txt.TextColor3 = Color3.fromRGB(0, 255, 255)
 										txt.TextStrokeTransparency = 0
 										txt.Font = Enum.Font.SourceSansBold
 										txt.Parent = gui
@@ -358,6 +306,7 @@ ESPTab:Toggle({
 									if not hl then
 										hl = Instance.new("Highlight")
 										hl.Name = player.Name .. "_HL"
+										hl.FillColor = Color3.fromRGB(0, 255, 255)
 										hl.OutlineColor = Color3.fromRGB(255, 255, 255)
 										hl.FillTransparency = 0.5
 										hl.Parent = espFolder
@@ -372,16 +321,6 @@ ESPTab:Toggle({
 										if txt then
 											local hum = char:FindFirstChildOfClass("Humanoid")
 											local hp = hum and math.floor(hum.Health) or 0
-											
-											-- ถ้าเป็นเพื่อนให้กรอบ/ป้ายสีเขียว ถ้าศัตรูสีฟ้า
-											if isFriend(player) then
-												txt.TextColor3 = Color3.fromRGB(50, 255, 50)
-												hl.FillColor = Color3.fromRGB(50, 255, 50)
-											else
-												txt.TextColor3 = Color3.fromRGB(0, 255, 255)
-												hl.FillColor = Color3.fromRGB(0, 255, 255)
-											end
-											
 											txt.Text = string.format("%s | [%dm] | %d HP", player.Name, dist, hp)
 											txt.TextSize = dist > 1500 and 11 or (dist > 500 and 12 or 14)
 										end
@@ -586,6 +525,8 @@ ESPTab:Toggle({
 
 
 -- ================= 3. แท็บ VISUALS (ปรับแต่งสภาพแวดล้อม) =================
+
+-- Night Vision
 local nightVisionActive = false
 local lightingConnection = nil
 
@@ -597,4 +538,42 @@ VisualsTab:Toggle({
 		nightVisionActive = state
 		if state then
 			local function applyNightVision()
-				Lighting.Brightness = 
+				Lighting.Brightness = 2
+				Lighting.ClockTime = 14
+				Lighting.FogEnd = 100000
+				Lighting.GlobalShadows = false
+				Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+			end
+			applyNightVision()
+			lightingConnection = Lighting.Changed:Connect(applyNightVision)
+		else
+			if lightingConnection then lightingConnection:Disconnect() lightingConnection = nil end
+			Lighting.Brightness = origLighting.Brightness
+			Lighting.ClockTime = origLighting.ClockTime
+			Lighting.FogEnd = origLighting.FogEnd
+			Lighting.GlobalShadows = origLighting.GlobalShadows
+			Lighting.Ambient = origLighting.Ambient
+		end
+	end
+})
+
+-- Remove Grass
+local origDecoration = false
+pcall(function()
+	origDecoration = workspace.Terrain.Decoration
+end)
+
+VisualsTab:Toggle({
+	Title = "Remove Grass (ลบหญ้า)",
+	Desc = "ลบหญ้าบนพื้น โล่งตา หาคนง่าย",
+	Value = false,
+	Callback = function(state)
+		pcall(function()
+			if state then
+				workspace.Terrain.Decoration = false
+			else
+				workspace.Terrain.Decoration = origDecoration
+			end
+		end)
+	end
+})
