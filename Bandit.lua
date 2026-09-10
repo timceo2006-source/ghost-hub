@@ -93,6 +93,36 @@ local function isVisible(targetPart)
 	return result == nil
 end
 
+-- ================= ฟังก์ชันเช็คทีม (ตามภาพ Explorer) =================
+local function isSameTeam(targetChar)
+	local myChar = getCustomCharacter(LocalPlayer)
+	if not myChar or not targetChar then return false end
+	
+	local function readTeamTag(char)
+		local head = char:FindFirstChild("Head")
+		if head then
+			local tag = head:FindFirstChild("PlayerTeamTag")
+			if tag then
+				local teamLabel = tag:FindFirstChild("Team")
+				if teamLabel and teamLabel:IsA("TextLabel") and teamLabel.Text ~= "" then
+					return teamLabel.Text
+				end
+			end
+		end
+		return nil
+	end
+
+	local myTeam = readTeamTag(myChar)
+	local targetTeam = readTeamTag(targetChar)
+	
+	if myTeam and targetTeam and myTeam == targetTeam then
+		return true
+	end
+	
+	return false
+end
+-- ====================================================================
+
 local function getBestTargetInFOV(myPos)
 	local closestTarget = nil
 	local shortestDist = math.huge
@@ -103,7 +133,8 @@ local function getBestTargetInFOV(myPos)
 			local char = getCustomCharacter(player)
 			local targetPart = getTargetPart(char)
 			
-			if char and targetPart and isValidTarget(char) then
+			-- เช็คเป้าหมาย ต้องเห็นตัว ไม่ตาย และ **ไม่ใช่ทีมเดียวกัน**
+			if char and targetPart and isValidTarget(char) and not isSameTeam(char) then
 				local dist3D = (myPos - targetPart.Position).Magnitude
 				
 				if dist3D <= MAX_AIM_DISTANCE then
@@ -176,17 +207,17 @@ local Window = WindUI:CreateWindow({
     ScrollBarEnabled = false,
 })
 
--- สร้างแท็บจัดหมวดหมู่ใหม่
+-- จัด 3 แท็บตามสั่ง
 local MainTab = Window:Tab({ Title = "Main", Locked = false })
 local ESPTab = Window:Tab({ Title = "ESP", Locked = false })
 local VisualsTab = Window:Tab({ Title = "Visuals", Locked = false })
 
--- ================= 1. แท็บ MAIN (ระบบต่อสู้) =================
+-- ================= 1. แท็บ MAIN (Aimbot) =================
 local aimbotEnabled, aimbotLoop, screenGui = false, nil, nil
 
 MainTab:Toggle({
-	Title = "Aimbot (Limit 600m)",
-	Desc = "ON/OFF Aimbot (ล็อกเป้าเฉพาะระยะ 600 เมตร)",
+	Title = "Aimbot (Limit 600m & Safe Team)",
+	Desc = "ON/OFF Aimbot (ไม่ล็อกเพื่อน ล็อกระยะ 600 เมตร)",
 	Value = false,
 	Callback = function(state)
 		aimbotEnabled = state
@@ -243,9 +274,7 @@ MainTab:Toggle({
 })
 
 
--- ================= 2. แท็บ ESP (ระบบเรดาร์/มองทะลุ) =================
-
--- ESP Players
+-- ================= 2. แท็บ ESP =================
 local espPlayerActive = false
 local espFolder = nil
 
@@ -264,7 +293,7 @@ end
 
 ESPTab:Toggle({
 	Title = "ESP Players",
-	Desc = "เปิด/ปิด ESP ผู้เล่น",
+	Desc = "เปิด/ปิด ESP ผู้เล่น (เพื่อน=เขียว, ศัตรู=ฟ้า)",
 	Value = false,
 	Callback = function(state)
 		espPlayerActive = state
@@ -295,7 +324,6 @@ ESPTab:Toggle({
 										txt.Name = "InfoText"
 										txt.Size = UDim2.new(1, 0, 1, 0)
 										txt.BackgroundTransparency = 1
-										txt.TextColor3 = Color3.fromRGB(0, 255, 255)
 										txt.TextStrokeTransparency = 0
 										txt.Font = Enum.Font.SourceSansBold
 										txt.Parent = gui
@@ -306,7 +334,6 @@ ESPTab:Toggle({
 									if not hl then
 										hl = Instance.new("Highlight")
 										hl.Name = player.Name .. "_HL"
-										hl.FillColor = Color3.fromRGB(0, 255, 255)
 										hl.OutlineColor = Color3.fromRGB(255, 255, 255)
 										hl.FillTransparency = 0.5
 										hl.Parent = espFolder
@@ -321,6 +348,16 @@ ESPTab:Toggle({
 										if txt then
 											local hum = char:FindFirstChildOfClass("Humanoid")
 											local hp = hum and math.floor(hum.Health) or 0
+											
+											-- อัปเดตสีตามทีม
+											if isSameTeam(char) then
+												txt.TextColor3 = Color3.fromRGB(50, 255, 50)
+												hl.FillColor = Color3.fromRGB(50, 255, 50)
+											else
+												txt.TextColor3 = Color3.fromRGB(0, 255, 255)
+												hl.FillColor = Color3.fromRGB(0, 255, 255)
+											end
+											
 											txt.Text = string.format("%s | [%dm] | %d HP", player.Name, dist, hp)
 											txt.TextSize = dist > 1500 and 11 or (dist > 500 and 12 or 14)
 										end
@@ -348,7 +385,6 @@ ESPTab:Toggle({
 	end
 })
 
--- ESP Bot
 local espBotActive = false
 local botEspFolder = nil
 
@@ -435,7 +471,6 @@ ESPTab:Toggle({
 	end
 })
 
--- ESP Exit
 local espExitActive = false
 local exitFolder = nil
 
@@ -476,7 +511,6 @@ ESPTab:Toggle({
 	end
 })
 
--- ESP Crates
 local espCrateActive = false
 local crateFolder = nil
 
@@ -525,8 +559,6 @@ ESPTab:Toggle({
 
 
 -- ================= 3. แท็บ VISUALS (ปรับแต่งสภาพแวดล้อม) =================
-
--- Night Vision
 local nightVisionActive = false
 local lightingConnection = nil
 
@@ -557,7 +589,6 @@ VisualsTab:Toggle({
 	end
 })
 
--- Remove Grass
 local origDecoration = false
 pcall(function()
 	origDecoration = workspace.Terrain.Decoration
@@ -565,15 +596,4 @@ end)
 
 VisualsTab:Toggle({
 	Title = "Remove Grass (ลบหญ้า)",
-	Desc = "ลบหญ้าบนพื้น โล่งตา หาคนง่าย",
-	Value = false,
-	Callback = function(state)
-		pcall(function()
-			if state then
-				workspace.Terrain.Decoration = false
-			else
-				workspace.Terrain.Decoration = origDecoration
-			end
-		end)
-	end
-})
+	Desc 
