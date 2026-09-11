@@ -13,7 +13,7 @@ local Camera = workspace.CurrentCamera
 
 local FOV_RADIUS = 150
 local AIM_SMOOTHNESS = 1
-local MAX_AIM_DISTANCE = 600
+local MAX_AIM_DISTANCE = 750
 
 local origLighting = {
 	Brightness = Lighting.Brightness,
