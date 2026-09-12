@@ -1,5 +1,7 @@
--- ป้องกันการรันสคริปต์ก่อนเกมโหลดเสร็จ (แก้ Delta ค้าง)
-repeat task.wait() until game:IsLoaded()
+-- ป้องกันการรันสคริปต์ก่อนเกมโหลดเสร็จ
+if not game:IsLoaded() then
+	game.Loaded:Wait()
+end
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -11,7 +13,7 @@ local Camera = workspace.CurrentCamera
 
 local FOV_RADIUS = 150
 local AIM_SMOOTHNESS = 1
-local MAX_AIM_DISTANCE = 600
+local MAX_AIM_DISTANCE = 750
 
 -- ========================================================
 -- 🟢 ใส่ชื่อเพื่อนตรงนี้ (Aimbot จะไม่ยิง / ESP จะเป็นสีเขียว)
@@ -64,7 +66,7 @@ end
 
 local function getTargetPart(char)
 	if not char then return nil end
-	-- 🔥 แก้คุมปืน: ล็อคเป้าที่ "กลางลำตัว" ก่อน เพื่อแก้ปัญหายิงรัวแล้วปืนดีดหลุดเป้า
+	-- 🔥 อัปเดต: เล็ง "กลางลำตัว" เป็นหลัก เพื่อให้ยิงนัดถัดไปแม่นขึ้น (ชดเชยปืนดีด)
 	return char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or char:FindFirstChild("Head") or char:FindFirstChildWhichIsA("BasePart", true)
 end
 
@@ -153,7 +155,7 @@ local function getBestTargetInFOV(myPos)
 			local char = getCustomCharacter(player)
 			local targetPart = getTargetPart(char)
 			
-			-- บังคับไม่ล็อคเพื่อน (not isFriend)
+			-- 🔥 อัปเดต: ถ้าเป็นเพื่อนจะไม่เอามาคิดใน Aimbot
 			if char and targetPart and isValidTarget(char) and not isFriend(player) then
 				local dist3D = (myPos - targetPart.Position).Magnitude
 				
@@ -237,7 +239,7 @@ local aimbotEnabled, aimbotLoop, screenGui = false, nil, nil
 
 MainTab:Toggle({
 	Title = "Aimbot (Safe Team & Better Aim)",
-	Desc = "ON/OFF Aimbot (กันเพื่อน ล็อคกลางตัวยิงแม่นขึ้น 600m)",
+	Desc = "ON/OFF Aimbot (กันเพื่อน, ล็อคตัวลดแรงดีดปืน)",
 	Value = false,
 	Callback = function(state)
 		aimbotEnabled = state
@@ -315,7 +317,7 @@ end
 
 ESPTab:Toggle({
 	Title = "ESP Players",
-	Desc = "เปิด/ปิด ESP ผู้เล่น (เพื่อน=สีเขียว, ศัตรู=สีฟ้า)",
+	Desc = "เปิด/ปิด ESP ผู้เล่น (เพื่อนสีเขียว, ศัตรูสีฟ้า)",
 	Value = false,
 	Callback = function(state)
 		espPlayerActive = state
@@ -347,11 +349,11 @@ ESPTab:Toggle({
 										txt.Size = UDim2.new(1, 0, 1, 0)
 										txt.BackgroundTransparency = 1
 										
-										-- เซ็ตสีเริ่มต้น
+										-- 🔥 อัปเดต: แยกสีเริ่มต้น (เพื่อน=เขียว, ศัตรู=ฟ้า)
 										if isFriend(player) then
-											txt.TextColor3 = Color3.fromRGB(50, 255, 50) -- เขียว
+											txt.TextColor3 = Color3.fromRGB(50, 255, 50)
 										else
-											txt.TextColor3 = Color3.fromRGB(0, 255, 255) -- ฟ้า
+											txt.TextColor3 = Color3.fromRGB(0, 255, 255)
 										end
 										
 										txt.TextStrokeTransparency = 0
@@ -365,6 +367,7 @@ ESPTab:Toggle({
 										hl = Instance.new("Highlight")
 										hl.Name = player.Name .. "_HL"
 										
+										-- 🔥 อัปเดต: แยกสีไฮไลต์ (เพื่อน=เขียว, ศัตรู=ฟ้า)
 										if isFriend(player) then
 											hl.FillColor = Color3.fromRGB(50, 255, 50)
 										else
@@ -386,7 +389,7 @@ ESPTab:Toggle({
 											local hum = char:FindFirstChildOfClass("Humanoid")
 											local hp = hum and math.floor(hum.Health) or 0
 											
-											-- อัปเดตสีตลอดเวลา
+											-- 🔥 อัปเดต: เช็คสีอัปเดตตลอดเวลา
 											if isFriend(player) then
 												txt.TextColor3 = Color3.fromRGB(50, 255, 50)
 												hl.FillColor = Color3.fromRGB(50, 255, 50)
@@ -584,12 +587,4 @@ ESPTab:Toggle({
 									createOrUpdateObjectESP(crateFolder, v, "📦 กล่องอาวุธใหญ่", Color3.fromRGB(255, 215, 0), myPart)
 								elseif v.Name == "Large ABPOPA Box" or v.Name == "LargeABPOPABox" then
 									createOrUpdateObjectESP(crateFolder, v, "📦 กล่อง ABPOPA ใหญ่", Color3.fromRGB(180, 50, 255), myPart)
-								end
-							end
-						end
-					end
-					task.wait(1)
-				end
-			end)
-		else
-			if crateFol
+						
