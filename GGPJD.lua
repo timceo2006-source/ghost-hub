@@ -1,7 +1,5 @@
--- ป้องกันการรันสคริปต์ก่อนเกมโหลดเสร็จ
-if not game:IsLoaded() then
-	game.Loaded:Wait()
-end
+-- ป้องกันการรันสคริปต์ก่อนเกมโหลดเสร็จ (แก้ Delta ค้าง)
+repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -16,7 +14,7 @@ local AIM_SMOOTHNESS = 1
 local MAX_AIM_DISTANCE = 600
 
 -- ========================================================
--- 🟢 ตั้งค่ารายชื่อเพื่อนตรงนี้! (Aimbot จะไม่ยิง / ESP จะเป็นสีเขียว)
+-- 🟢 ใส่ชื่อเพื่อนตรงนี้ (Aimbot จะไม่ยิง / ESP จะเป็นสีเขียว)
 -- ========================================================
 local FriendList = {
 	"AQWCCDE", 
@@ -66,8 +64,7 @@ end
 
 local function getTargetPart(char)
 	if not char then return nil end
-	-- 🔥 อัปเดต: เปลี่ยนมาให้ความสำคัญกับ "กลางลำตัว (HumanoidRootPart)" ก่อน
-	-- เพื่อให้ยิงนัดถัดไปแม่นขึ้น (เวลากระสุนบาน หรือปืนดีด จะยังเกาะกลุ่มที่ตัว)
+	-- 🔥 แก้คุมปืน: ล็อคเป้าที่ "กลางลำตัว" ก่อน เพื่อแก้ปัญหายิงรัวแล้วปืนดีดหลุดเป้า
 	return char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or char:FindFirstChild("Head") or char:FindFirstChildWhichIsA("BasePart", true)
 end
 
@@ -104,16 +101,18 @@ local function isVisible(targetPart)
 	return result == nil
 end
 
--- ================= ฟังก์ชันเช็คว่าใช่เพื่อนไหม =================
+-- ================= ฟังก์ชันเช็คเพื่อนร่วมทีม =================
 local function isFriend(player)
 	if not player then return false end
 	
+	-- 1. เช็คจากชื่อในตารางด้านบน
 	for _, friendName in ipairs(FriendList) do
 		if player.Name == friendName then
 			return true
 		end
 	end
 
+	-- 2. เช็คจากป้าย Team บนหัว
 	local myChar = getCustomCharacter(LocalPlayer)
 	local targetChar = getCustomCharacter(player)
 	
@@ -154,6 +153,7 @@ local function getBestTargetInFOV(myPos)
 			local char = getCustomCharacter(player)
 			local targetPart = getTargetPart(char)
 			
+			-- บังคับไม่ล็อคเพื่อน (not isFriend)
 			if char and targetPart and isValidTarget(char) and not isFriend(player) then
 				local dist3D = (myPos - targetPart.Position).Magnitude
 				
@@ -233,11 +233,11 @@ local ESPTab = Window:Tab({ Title = "ESP", Locked = false })
 local VisualsTab = Window:Tab({ Title = "Visuals", Locked = false })
 
 -- ================= 1. แท็บ MAIN (ระบบต่อสู้) =================
-local aimbotEnabled, screenGui = false, nil
+local aimbotEnabled, aimbotLoop, screenGui = false, nil, nil
 
 MainTab:Toggle({
-	Title = "Aimbot (Safe Team & No Recoil)",
-	Desc = "ON/OFF Aimbot (ล็อคแน่น คุมปืนให้อัตโนมัติ เล็งระยะ 600m)",
+	Title = "Aimbot (Safe Team & Better Aim)",
+	Desc = "ON/OFF Aimbot (กันเพื่อน ล็อคกลางตัวยิงแม่นขึ้น 600m)",
 	Value = false,
 	Callback = function(state)
 		aimbotEnabled = state
@@ -268,28 +268,27 @@ MainTab:Toggle({
 				toggleButton.Text = aimActive and "AIM: ON" or "AIM: OFF"
 			end)
 
-			-- 🔥 อัปเดต: ใช้ BindToRenderStep แทน และตั้งความสำคัญระดับ 250 (ทำหลังสุด)
-			-- ตัวเกมจะดีดปืนเสร็จก่อน แล้วสคริปต์นี้จะกดกล้องกลับมาให้ตรงเป้า 100% (ลดแรงดีด)
-			RunService:BindToRenderStep("GhostHubAimbot", 250, function()
-				if aimbotEnabled and aimActive then
-					local myChar = getCustomCharacter(LocalPlayer)
-					local myPart = getTargetPart(myChar)
-					if myPart then
-						local targetPart = getBestTargetInFOV(myPart.Position)
-						if targetPart then
-							local targetVelocity = targetPart.AssemblyLinearVelocity or Vector3.new(0, 0, 0)
-							local dist = (Camera.CFrame.Position - targetPart.Position).Magnitude
-							local dynPred = (dist / 2000) + 0.05
-							local predictedPos = targetPart.Position + (targetVelocity * dynPred)
-							Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, predictedPos), AIM_SMOOTHNESS)
+			if not aimbotLoop then
+				aimbotLoop = RunService.RenderStepped:Connect(function()
+					if aimbotEnabled and aimActive then
+						local myChar = getCustomCharacter(LocalPlayer)
+						local myPart = getTargetPart(myChar)
+						if myPart then
+							local targetPart = getBestTargetInFOV(myPart.Position)
+							if targetPart then
+								local targetVelocity = targetPart.AssemblyLinearVelocity or Vector3.new(0, 0, 0)
+								local dist = (Camera.CFrame.Position - targetPart.Position).Magnitude
+								local dynPred = (dist / 2000) + 0.05
+								local predictedPos = targetPart.Position + (targetVelocity * dynPred)
+								Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, predictedPos), AIM_SMOOTHNESS)
+							end
 						end
 					end
-				end
-			end)
+				end)
+			end
 		else
 			if screenGui then screenGui:Destroy() screenGui = nil end
-			-- ปิดการทำงานแบบสะอาดหมดจด
-			RunService:UnbindFromRenderStep("GhostHubAimbot")
+			if aimbotLoop then aimbotLoop:Disconnect() aimbotLoop = nil end
 		end
 	end
 })
@@ -316,7 +315,7 @@ end
 
 ESPTab:Toggle({
 	Title = "ESP Players",
-	Desc = "เปิด/ปิด ESP ผู้เล่น (เพื่อน=เขียว, ศัตรู=ฟ้า)",
+	Desc = "เปิด/ปิด ESP ผู้เล่น (เพื่อน=สีเขียว, ศัตรู=สีฟ้า)",
 	Value = false,
 	Callback = function(state)
 		espPlayerActive = state
@@ -347,6 +346,14 @@ ESPTab:Toggle({
 										txt.Name = "InfoText"
 										txt.Size = UDim2.new(1, 0, 1, 0)
 										txt.BackgroundTransparency = 1
+										
+										-- เซ็ตสีเริ่มต้น
+										if isFriend(player) then
+											txt.TextColor3 = Color3.fromRGB(50, 255, 50) -- เขียว
+										else
+											txt.TextColor3 = Color3.fromRGB(0, 255, 255) -- ฟ้า
+										end
+										
 										txt.TextStrokeTransparency = 0
 										txt.Font = Enum.Font.SourceSansBold
 										txt.Parent = gui
@@ -357,6 +364,13 @@ ESPTab:Toggle({
 									if not hl then
 										hl = Instance.new("Highlight")
 										hl.Name = player.Name .. "_HL"
+										
+										if isFriend(player) then
+											hl.FillColor = Color3.fromRGB(50, 255, 50)
+										else
+											hl.FillColor = Color3.fromRGB(0, 255, 255)
+										end
+										
 										hl.OutlineColor = Color3.fromRGB(255, 255, 255)
 										hl.FillTransparency = 0.5
 										hl.Parent = espFolder
@@ -372,6 +386,7 @@ ESPTab:Toggle({
 											local hum = char:FindFirstChildOfClass("Humanoid")
 											local hp = hum and math.floor(hum.Health) or 0
 											
+											-- อัปเดตสีตลอดเวลา
 											if isFriend(player) then
 												txt.TextColor3 = Color3.fromRGB(50, 255, 50)
 												hl.FillColor = Color3.fromRGB(50, 255, 50)
@@ -577,21 +592,4 @@ ESPTab:Toggle({
 				end
 			end)
 		else
-			if crateFolder then crateFolder:Destroy() crateFolder = nil end
-		end
-	end
-})
-
-
--- ================= 3. แท็บ VISUALS (ปรับแต่งสภาพแวดล้อม) =================
-
--- Night Vision
-local nightVisionActive = false
-local lightingConnection = nil
-
-VisualsTab:Toggle({
-	Title = "Night Vision",
-	Desc = "เปิด/ปิด การมองเห็นตอนกลางคืน",
-	Value = false,
-	Callback = function(state)
-		nightVisionActi
+			if crateFol
