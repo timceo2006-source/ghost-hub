@@ -12,16 +12,16 @@ local FOV_RADIUS = 150
 local AIM_SMOOTHNESS = 1
 local MAX_AIM_DISTANCE = 600
 
+-- แก้ไขตรงนี้จาก Local เป็น local
 local FriendList = {
 	"AQWCCDE",
 	"iooz40myzw68",
-	"yaShi_HIR0z"
+	"woodwork_ppz321"
 }
-
 
 local origLighting = {
 	Brightness = Lighting.Brightness,
-	Localighting.ClockTime,
+	ClockTime = Lighting.ClockTime,
 	FogEnd = Lighting.FogEnd,
 	GlobalShadows = Lighting.GlobalShadows,
 	Ambient = Lighting.Ambient
@@ -175,7 +175,14 @@ local function createOrUpdateObjectESP(folder, object, displayName, color, myPar
 	if txt then txt.Text = string.format("%s\n[%dm]", displayName, dist) end
 end
 
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+local success, WindUI = pcall(function()
+	return loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+end)
+
+if not success or not WindUI then
+	warn("Failed to load WindUI library.")
+	return
+end
 
 local Window = WindUI:CreateWindow({
     Title = "Ghost Hub",
@@ -265,7 +272,14 @@ local function ensureFolder()
 	espFolder = Instance.new("Folder")
 	espFolder.Name = "SecureESPFolder"
 	local s, h = pcall(function() return gethui() end)
-	if s and h then espFolder.Parent = h else pcall(function() espFolder.Parent = CoreGui end) if not espFolder.Parent then espFolder.Parent = LocalPlayer:WaitForChild("PlayerGui") end end
+	if s and h then 
+		espFolder.Parent = h 
+	else 
+		pcall(function() espFolder.Parent = CoreGui end) 
+		if not espFolder.Parent then 
+			espFolder.Parent = LocalPlayer:WaitForChild("PlayerGui") 
+		end 
+	end
 end
 
 ESPTab:Toggle({
