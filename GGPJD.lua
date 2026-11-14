@@ -1,4 +1,5 @@
 if not game:IsLoaded() then game.Loaded:Wait() end
+task.wait(2) -- เพิ่มเวลารอ 2 วินาทีเพื่อให้ระบบเน็ตเวิร์กและตัวรันพร้อมทำงานอัตโนมัติ
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -58,7 +59,6 @@ local function getCustomCharacter(player)
 	return nil
 end
 
--- [แก้ไขตรงนี้] สลับให้ "Head" อยู่บนสุด เพื่อให้ Aimbot เล็งหัวก่อนลำตัว
 local function getTargetPart(char)
 	if not char then return nil end
 	return char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or char:FindFirstChildWhichIsA("BasePart", true)
