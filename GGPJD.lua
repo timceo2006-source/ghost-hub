@@ -12,9 +12,12 @@ local FOV_RADIUS = 150
 local AIM_SMOOTHNESS = 1
 local MAX_AIM_DISTANCE = 600
 
-local FriendList = {
-	"AQWCCDE"
+Local FriendList = {
+	"AQWCCDE",
+	"iooz40myzw68",
+	"yaShi_HIR0z"
 }
+
 
 local origLighting = {
 	Brightness = Lighting.Brightness,
