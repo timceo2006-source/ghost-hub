@@ -12,7 +12,7 @@ local FOV_RADIUS = 150
 local AIM_SMOOTHNESS = 1
 local MAX_AIM_DISTANCE = 600
 
-Local FriendList = {
+local FriendList = {
 	"AQWCCDE",
 	"iooz40myzw68",
 	"yaShi_HIR0z"
@@ -21,7 +21,7 @@ Local FriendList = {
 
 local origLighting = {
 	Brightness = Lighting.Brightness,
-	ClockTime = Lighting.ClockTime,
+	Localighting.ClockTime,
 	FogEnd = Lighting.FogEnd,
 	GlobalShadows = Lighting.GlobalShadows,
 	Ambient = Lighting.Ambient
